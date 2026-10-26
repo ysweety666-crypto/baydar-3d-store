@@ -299,8 +299,7 @@ svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-widt
 
   <div class="coach" id="coach" hidden>
     <div class="coach-zones" id="coachZones">
-      <div><span><svg viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 15a1.5 1.5 0 0 1 2.5-1.7L7.5 15"/><path d="M4 4 2 6l2 2M20 4l2 2-2 2"/></svg>اسحب هون<br>عشان تلتفت</span></div>
-      <div><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v3M12 18v3"/></svg>حط إبهامك هون<br>وادفع لقدّام عشان تمشي</span></div>
+      <div><span><svg viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 15a1.5 1.5 0 0 1 2.5-1.7L7.5 15"/><path d="M12 1v2M9.5 3.5 12 1l2.5 2.5M3 12h-.5M21 12h.5"/></svg>حط إصبعك بأي مكان<br>واسحب لفوق عشان تمشي<br>ويمين أو شمال عشان تلف</span></div>
     </div>
     <div class="coach-card">
       <p id="coachTxt"><b>أو أسهل:</b> اضغط على أي مكان بالأرض وبتمشي لحالك لهناك. اضغط على أي منتج لتشوف سعره وتضيفه للسلة.</p>
@@ -1476,49 +1475,43 @@ function showHighlight(b){
   highlight.visible = true; hlUntil = performance.now() + 3500;
 }
 
+// phones: one finger anywhere. Slide up to walk forward (down to step back), slide sideways to turn, tap to go or to pick.
+const drive = { f: 0 };
 function bindControls(cv){
   const looks = new Map();
-  const topLimit = () => $('#top').getBoundingClientRect().bottom;
   const knob = $('#joyKnob'), base = $('#joy');
   cv.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const touch = e.pointerType !== 'mouse';
+    if (touch && looks.size) return; // one finger is enough; ignore a second one
     try { cv.setPointerCapture(e.pointerId); } catch(err){}
-    const leftZone = e.pointerType !== 'mouse' && e.clientX < innerWidth * .45 && e.clientY > topLimit() + 10;
-    if (leftZone && !joy.on){
-      Object.assign(joy, { on: true, id: e.pointerId, cx: e.clientX, cy: e.clientY, x: 0, y: 0, t: performance.now(), moved: false });
-      base.style.left = e.clientX + 'px'; base.style.top = e.clientY + 'px'; knob.style.transform = ''; base.hidden = false;
-      path = null; hideCoach();
-      return;
-    }
-    looks.set(e.pointerId, { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), moved: false });
+    looks.set(e.pointerId, { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), moved: false, touch });
   });
   cv.addEventListener('pointermove', e => {
-    if (joy.on && e.pointerId === joy.id){
-      let dx = e.clientX - joy.cx, dy = e.clientY - joy.cy; const d = Math.hypot(dx, dy), R = 48;
-      if (d > 8) joy.moved = true;
-      if (d > R){ dx *= R / d; dy *= R / d; }
-      knob.style.transform = `translate(${dx}px,${dy}px)`;
-      joy.x = dx / R; joy.y = dy / R;
-      return;
-    }
     const l = looks.get(e.pointerId); if (!l) return;
-    if (!l.moved && Math.hypot(e.clientX - l.x, e.clientY - l.y) > 8){ l.moved = true; hideCoach(); }
+    if (!l.moved && Math.hypot(e.clientX - l.x, e.clientY - l.y) > 10){
+      l.moved = true; hideCoach(); path = null;
+      if (l.touch){ base.style.left = l.x + 'px'; base.style.top = l.y + 'px'; knob.style.transform = ''; base.hidden = false; }
+    }
     if (l.moved){
-      const k = (e.pointerType === 'mouse' ? .0042 : .0058) * (camera.fov / 70);
-      me.tYaw += (e.clientX - l.lx) * k;
-      me.tPitch = Math.max(-.7, Math.min(.55, me.tPitch + (e.clientY - l.ly) * k * .8));
+      if (l.touch){
+        me.tYaw += (e.clientX - l.lx) * .0062 * (camera.fov / 70);
+        const dy = Math.max(-70, Math.min(70, e.clientY - l.y));
+        const v = -dy / 70;
+        drive.f = Math.abs(v) < .12 ? 0 : (v - Math.sign(v) * .12) / .88;
+        knob.style.transform = `translate(${Math.max(-40, Math.min(40, e.clientX - l.x))}px,${dy}px)`;
+      } else {
+        const k = .0042 * (camera.fov / 70);
+        me.tYaw += (e.clientX - l.lx) * k;
+        me.tPitch = Math.max(-.7, Math.min(.55, me.tPitch + (e.clientY - l.ly) * k * .8));
+      }
     }
     l.lx = e.clientX; l.ly = e.clientY;
   });
   const up = e => {
-    if (joy.on && e.pointerId === joy.id){
-      const tap = !joy.moved && performance.now() - joy.t < 300;
-      joy.on = false; joy.x = joy.y = 0; base.hidden = true;
-      if (tap && e.type === 'pointerup') tapAt(e.clientX, e.clientY);
-      return;
-    }
     const l = looks.get(e.pointerId); if (!l) return;
     looks.delete(e.pointerId);
+    if (l.touch){ drive.f = 0; base.hidden = true; }
     if (!l.moved && e.type === 'pointerup' && performance.now() - l.t < 450) tapAt(e.clientX, e.clientY);
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
@@ -1869,7 +1862,7 @@ function spawnNPCs(){
   loadRigs().then(r => {
     RIGS = r;
     spawnStaff();
-    for (let i = 0; i < 8; i++) spawnShopper(false);
+    for (let i = 0; i < (coarse ? 5 : 8); i++) spawnShopper(false);
     if (AUD.ctx) AUD.refreshCarts && AUD.refreshCarts();
   }).catch(e => console.warn('people not loaded', e));
 }
@@ -1895,9 +1888,12 @@ const SOUNDS = ['ambience', 'scan_beep', 'cart', 'chime', 'register', 'steps', '
 function audioReady(){ return AUD.ctx && AUD.on && AUD.ctx.state === 'running' && !document.hidden; }
 async function audioStart(){
   if (!AUD.on) return;
-  if (AUD.ctx){ if (AUD.ctx.state === 'suspended') AUD.ctx.resume(); return; }
+  if (AUD.ctx){ if (AUD.ctx.state !== 'running') AUD.ctx.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   const ctx = AUD.ctx = new AC();
+  // iPhones unlock audio only after something actually plays inside the tap
+  ctx.resume();
+  try { const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, 22050); s.connect(ctx.destination); s.start(0); } catch(e){}
   AUD.master = ctx.createGain(); AUD.master.gain.value = 1; AUD.master.connect(ctx.destination);
   await Promise.all(SOUNDS.map(n => fetch(`sounds/snd_${n}.mp3`).then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej))).then(d => { AUD.buf[n] = d; }).catch(() => {})));
   AUD.amb = loopSrc('ambience', .55);
@@ -1942,17 +1938,20 @@ function updateAudio(speed){
     c.g.gain.setTargetAtTime(sp.vol * mv * .5, t, .1); c.pn.pan.setTargetAtTime(sp.pan * .8, t, .1);
   });
 }
-function setSound(on){
+function setSound(on, quiet){
   AUD.on = on; mem.set('bd2_sound', on);
   $('#soundBtn').setAttribute('aria-pressed', on);
   $('#soundIco').innerHTML = on ? '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 5 6M22 9l-5 6"/>';
-  if (on) audioStart(); else if (AUD.ctx) AUD.ctx.suspend();
+  if (on && !quiet) audioStart(); else if (!on && AUD.ctx) AUD.ctx.suspend();
 }
 
 let last = performance.now();
+const perf = { n: 0, t: 0, done: false };
 function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(.05, (now - last) / 1000); last = now;
+  // if the phone can't keep up after the first seconds, render at a lower resolution
+  if (!perf.done && view === 'store' && !document.hidden){ perf.n++; perf.t += dt; if (perf.t > 4){ perf.done = true; if (perf.n / perf.t < 40) renderer.setPixelRatio(1); } }
   if (view !== 'store' || document.hidden) return;
   const fwdV = new THREE.Vector3(-Math.sin(me.yaw), 0, -Math.cos(me.yaw)), rightV = new THREE.Vector3(Math.cos(me.yaw), 0, -Math.sin(me.yaw));
   const want = new THREE.Vector3();
@@ -1970,7 +1969,7 @@ function loop(now){
     }
   } else if (!openSheet){
     let f = 0, turn = 0, str = 0;
-    if (joy.on){ const jy = -joy.y, jx = joy.x; f = Math.abs(jy) > .12 ? jy : 0; turn = Math.abs(jx) > .15 ? -jx : 0; }
+    if (drive.f){ f = drive.f; me.tPitch += (-.06 - me.tPitch) * Math.min(1, dt * 2); }
     if (keys.w || keys.arrowup) f += 1;
     if (keys.s || keys.arrowdown) f -= 1;
     if (keys.a) str -= 1;
@@ -2015,7 +2014,7 @@ async function init3D(){
   const cv = $('#gl');
   try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); }
   catch(e){ return false; }
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1.5 : 1.75));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1.25 : 1.75));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   scene = new THREE.Scene();
   scene.background = new THREE.Color('#3A3C3C');
@@ -2025,9 +2024,10 @@ async function init3D(){
   envTex = pmrem.fromScene(new RoomEnvironment(renderer), .04).texture;
   scene.environment = envTex;
   // warm-neutral store lighting: dim ambient, light coming from the fixtures above each aisle
-  scene.add(new THREE.HemisphereLight('#FFF6EA', '#8E8A82', .38));
+  scene.add(new THREE.HemisphereLight('#FFF6EA', '#8E8A82', coarse ? .8 : .38));
   const key = new THREE.DirectionalLight('#FFF4E4', .55); key.position.set(1, 10, 3); scene.add(key);
   [[-4.95, -14], [0, -14], [4.95, -14], [-4.95, -8.5], [0, -8.5], [4.95, -8.5], [-3, -2], [3, -2]].forEach(([x, z]) => {
+    if (coarse) return; // phones: skip the per-pixel lamps, the hemisphere light below fills in
     const l = new THREE.PointLight('#FFF1DC', z > -3 ? 4 : 7, 9, 1.6); l.position.set(x, CEIL - .7, z); scene.add(l);
   });
   progress(.1, 'بنرتّب الرفوف…'); await nextFrame();
@@ -2068,10 +2068,19 @@ async function boot(){
   }
   $('#coachOk').addEventListener('click', hideCoach);
   // sound can only start after the visitor touches the page
-  setSound(AUD.on); if (AUD.ctx) AUD.ctx.suspend();
-  const wake = () => { if (AUD.on) audioStart(); };
-  addEventListener('pointerdown', wake, { once: true }); addEventListener('keydown', wake, { once: true });
-  $('#soundBtn').addEventListener('click', () => setSound(!AUD.on));
+  // phones only allow sound that starts inside a tap, so the audio is created on the first real touch
+  setSound(AUD.on, true);
+  const GESTURES = ['pointerup', 'touchend', 'click', 'keydown'];
+  const unlock = () => {
+    if (!AUD.on) return;
+    audioStart();
+    if (AUD.ctx && AUD.ctx.state === 'running') GESTURES.forEach(ev => removeEventListener(ev, unlock, true));
+  };
+  GESTURES.forEach(ev => addEventListener(ev, unlock, true));
+  $('#soundBtn').addEventListener('click', () => {
+    if (AUD.on && (!AUD.ctx || AUD.ctx.state !== 'running')){ audioStart(); toast('الصوت شغّال. إذا ما سمعت، شيّك إن الجوال مش على الصامت'); return; }
+    setSound(!AUD.on);
+  });
   measure();
   if (gl) setTimeout(async () => { await makeThumbs().catch(() => {}); refreshCart(); }, 300);
   else makeThumbsFallback();
