@@ -1571,12 +1571,25 @@ if (!window.__fetchUnwrapped){
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init) => input instanceof Request ? nativeFetch(input.url, { method: input.method, credentials: input.credentials, signal: init && init.signal }) : nativeFetch(input, init);
 }
+// fetch with the short relative path ourselves, then let the loader parse the bytes
+async function loadAsset(L, base){
+  for (const ext of ['.glb', '.json']){
+    try {
+      const r = await fetch(base + ext);
+      if (!r.ok) continue;
+      const buf = await r.arrayBuffer();
+      if (buf.byteLength < 16) continue;
+      return await L.parseAsync(buf, '');
+    } catch(e){ /* try the next format */ }
+  }
+  throw new Error('missing ' + base);
+}
 async function loadRigs(){
   const L = new GLTFLoader(); L.setMeshoptDecoder(MeshoptDecoder);
   const [chars, anims] = await Promise.all([
-    // .glb where the host serves it (Vercel), the same model packed as .json otherwise (Claude artifact)
-    Promise.all(CHAR.map(c => L.loadAsync(`models/${c.id}.glb`).catch(() => L.loadAsync(`models/${c.id}.json`)).then(g => ({ ...c, scene: g.scene })))),
-    Promise.all(ANIMS.map(n => L.loadAsync(`anims/${n}.glb`).catch(() => L.loadAsync(`anims/${n}.json`)).then(g => [n, g.animations[0]])))
+    // .glb where the host serves it (Vercel, GitHub), the same model packed as .json otherwise (Claude artifact)
+    Promise.all(CHAR.map(c => loadAsset(L, `models/${c.id}`).then(g => ({ ...c, scene: g.scene })))),
+    Promise.all(ANIMS.map(n => loadAsset(L, `anims/${n}`).then(g => [n, g.animations[0]])))
   ]);
   chars.forEach(c => {
     c.scene.traverse(o => {
