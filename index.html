@@ -1495,9 +1495,10 @@ function bindControls(cv){
     }
     if (l.moved){
       if (l.touch){
-        me.tYaw += (e.clientX - l.lx) * .0062 * (camera.fov / 70);
-        const dy = Math.max(-70, Math.min(70, e.clientY - l.y));
-        const v = -dy / 70;
+        // finger right = turn right
+        me.tYaw -= (e.clientX - l.lx) * .0032 * (camera.fov / 70);
+        const dy = Math.max(-90, Math.min(90, e.clientY - l.y));
+        const v = -dy / 90;
         drive.f = Math.abs(v) < .12 ? 0 : (v - Math.sign(v) * .12) / .88;
         knob.style.transform = `translate(${Math.max(-40, Math.min(40, e.clientX - l.x))}px,${dy}px)`;
       } else {
@@ -1883,13 +1884,17 @@ function updateNPCs(dt){
 }
 
 /* ---------- store sound: real recordings ---------- */
-const AUD = { ctx: null, on: mem.get('bd2_sound', true), buf: {}, carts: new Map() };
+const AUD = { ctx: null, on: mem.get('bd3_sound', true), buf: {}, carts: new Map() };
 const SOUNDS = ['ambience', 'scan_beep', 'cart', 'chime', 'register', 'steps', 'fridge'];
 function audioReady(){ return AUD.ctx && AUD.on && AUD.ctx.state === 'running' && !document.hidden; }
 async function audioStart(){
   if (!AUD.on) return;
-  if (AUD.ctx){ if (AUD.ctx.state !== 'running') AUD.ctx.resume(); return; }
+  if (AUD.ctx){ if (AUD.ctx.state !== 'running') AUD.ctx.resume(); if (AUD.html && AUD.html.paused) AUD.html.play().catch(() => {}); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+  // iPhone: treat this as media playback so the silent switch doesn't mute the store,
+  // and start a silent <audio> inside the tap, which switches the phone's audio session on
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+  try { AUD.html = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'); AUD.html.loop = true; AUD.html.setAttribute('playsinline', ''); AUD.html.play().catch(() => {}); } catch(e){}
   const ctx = AUD.ctx = new AC();
   // iPhones unlock audio only after something actually plays inside the tap
   ctx.resume();
@@ -1939,7 +1944,7 @@ function updateAudio(speed){
   });
 }
 function setSound(on, quiet){
-  AUD.on = on; mem.set('bd2_sound', on);
+  AUD.on = on; mem.set('bd3_sound', on);
   $('#soundBtn').setAttribute('aria-pressed', on);
   $('#soundIco').innerHTML = on ? '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 5 6M22 9l-5 6"/>';
   if (on && !quiet) audioStart(); else if (!on && AUD.ctx) AUD.ctx.suspend();
@@ -1969,7 +1974,7 @@ function loop(now){
     }
   } else if (!openSheet){
     let f = 0, turn = 0, str = 0;
-    if (drive.f){ f = drive.f; me.tPitch += (-.06 - me.tPitch) * Math.min(1, dt * 2); }
+    if (drive.f){ f = drive.f * .55; me.tPitch += (-.06 - me.tPitch) * Math.min(1, dt * 2); }
     if (keys.w || keys.arrowup) f += 1;
     if (keys.s || keys.arrowdown) f -= 1;
     if (keys.a) str -= 1;
