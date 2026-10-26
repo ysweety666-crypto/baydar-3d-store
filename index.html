@@ -1550,8 +1550,8 @@ function tapAt(cx, cy){
 
 /* ---------- real people: Mixamo characters driven by motion-capture clips ---------- */
 const CHAR = [
-  { id: 'Ch21', f: false }, { id: 'Ch23', f: false }, { id: 'Remy', f: false },
-  { id: 'Ch22', f: true }, { id: 'claire', f: true }, { id: 'Ch17', f: false, worker: true }
+  { id: 'Ch23', f: false }, { id: 'Ch21', f: true }, { id: 'Ch22', f: true },
+  { id: 'Ch17', f: false, worker: true }
 ];
 const ANIMS = ['walk', 'walk_f', 'push', 'carry', 'idle', 'typing', 'put_down', 'reach', 'pick_up', 'look'];
 const STRIDE = { walk: 1.25, walk_f: 1.05, push: .75, carry: 1.0 };
@@ -1707,7 +1707,6 @@ function spawnShopper(atDoor){
   const c = pool[Math.floor(rnd() * pool.length)];
   const p = makePerson(c);
   p.role = 'shopper'; p.browses = 2 + Math.floor(rnd() * 3);
-  if (rnd() < .4){ p.cartObj = makeCart(); p.cartObj.position.set(0, 0, .6); p.g.add(p.cartObj); }
   p.speed = (p.cartObj ? .8 : c.f ? 1.0 : 1.15) * (.9 + rnd() * .2);
   p.pos.copy(atDoor ? new THREE.Vector3(-1.2 + rnd() * 2, 0, 5.1) : randomSpot());
   p.g.position.copy(p.pos); p.g.rotation.y = atDoor ? Math.PI : rnd() * Math.PI * 2;
