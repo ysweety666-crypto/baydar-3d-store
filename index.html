@@ -312,6 +312,7 @@ svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-widt
     <b>سوبرماركت البيدر</b>
     <div class="ld-bar"><i id="ldBar"></i></div>
     <span id="ldTxt">بنرتّب الرفوف…</span>
+    <button class="btn btn-primary" id="ldGo" hidden style="width:220px;margin-top:6px"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>ادخل المحل</button>
   </div>
 
   <div class="backdrop" id="backdrop" hidden></div>
@@ -871,7 +872,8 @@ function makeMaterials(){
   for (let i = 0; i < 4; i++){ wx.fillStyle = ['#B98A5A','#A97B4C','#C29464','#B08250'][i]; wx.fillRect(0, i * 32, 512, 32); for (let k = 0; k < 40; k++){ wx.strokeStyle = `rgba(80,50,25,${.08 + Math.random() * .12})`; wx.lineWidth = 1; wx.beginPath(); const yy = i * 32 + Math.random() * 32; wx.moveTo(0, yy); wx.bezierCurveTo(170, yy + Math.random() * 6 - 3, 340, yy + Math.random() * 6 - 3, 512, yy + Math.random() * 4 - 2); wx.stroke(); } wx.fillStyle = 'rgba(60,35,15,.45)'; wx.fillRect(0, i * 32 + 30, 512, 2); }
   const wt = tex(wc); wt.wrapS = wt.wrapT = THREE.RepeatWrapping;
   MAT.wood = S({ map: wt, roughness: .72 });
-  MAT.wall = S({ color: '#E9E5DC', roughness: .9 });
+  MAT.wall = S({ color: '#E6DCC8', roughness: .9 });
+  MAT.yellow = S({ color: '#F2C230', roughness: .5 });
   MAT.metal = S({ color: '#E3E6E3', roughness: .42, metalness: .35 });
   MAT.panel = S({ color: '#D2D6D3', roughness: .75 });
   MAT.kick = S({ color: '#3A3F3C', roughness: .55, metalness: .2 });
@@ -951,7 +953,9 @@ function buildRoom(){
   wall(X1 - X0, 0, Z0, 0); wall(Z1 - Z0, X0, (Z0 + Z1) / 2, Math.PI / 2); wall(Z1 - Z0, X1, (Z0 + Z1) / 2, -Math.PI / 2);
   // skirting and green brand band
   addBox('kick', X1 - X0, .1, .02, 0, .05, Z0 + .01); addBox('kick', .02, .1, Z1 - Z0, X0 + .01, .05, (Z0 + Z1) / 2); addBox('kick', .02, .1, Z1 - Z0, X1 - .01, .05, (Z0 + Z1) / 2);
-  addBox('brand', X1 - X0, .08, .02, 0, 3.05, Z0 + .01); addBox('brand', .02, .08, Z1 - Z0, X0 + .01, 3.05, (Z0 + Z1) / 2); addBox('brand', .02, .08, Z1 - Z0, X1 - .01, 3.05, (Z0 + Z1) / 2);
+  // wide brand-green band along the top of the walls, with a thin yellow line under it
+  addBox('brand', X1 - X0, .42, .02, 0, 3.19, Z0 + .01); addBox('brand', .02, .42, Z1 - Z0, X0 + .01, 3.19, (Z0 + Z1) / 2); addBox('brand', .02, .42, Z1 - Z0, X1 - .01, 3.19, (Z0 + Z1) / 2);
+  addBox('yellow', X1 - X0, .04, .022, 0, 2.96, Z0 + .012); addBox('yellow', .022, .04, Z1 - Z0, X0 + .012, 2.96, (Z0 + Z1) / 2); addBox('yellow', .022, .04, Z1 - Z0, X1 - .012, 2.96, (Z0 + Z1) / 2);
   // glass shop front with mullions and a bright street behind
   plane(MAT.street, X1 - X0, CEIL, 0, CEIL / 2, Z1 + .6, Math.PI);
   for (let x = X0; x <= X1 + .01; x += 1.5) addBox('dark', .06, CEIL, .08, x, CEIL / 2, Z1);
@@ -986,7 +990,7 @@ function buildRoom(){
   word('مخبوزات', 3.4, X0 + .02, 2.7, (GZ0 + GZ1) / 2, Math.PI / 2);
   word('خضار وفواكه', 4, X0 + .02, 2.7, -.2, Math.PI / 2);
   word('عناية شخصية', 4, X1 - .02, 2.7, (GZ0 + GZ1) / 2, -Math.PI / 2);
-  word('ألبان وأجبان', 4.4, 0, 2.82, Z0 + .02, 0);
+  word('ألبان وأجبان', 4.4, 0, 2.7, Z0 + .02, 0);
   const brandMat = textPlane(STORE.short, { w: 2.4, h: .8, color: '#FFFFFF', bg: '#0B7A4B', font: F_PUNCH, weight: 400, sub: 'طازج كل يوم' });
   plane(brandMat, 2.4, .8, 5.6, 2.7, Z1 - .15, Math.PI);
   COLL.push([X0, X1, Z1 - .35, Z1 + 1]);
@@ -1282,7 +1286,7 @@ function buildFridges(){
   CAT_SPOT.dairy = { stand: new THREE.Vector3(-1.2, 0, -18.3), look: new THREE.Vector3(-1.2, 1.0, front), where: 'ثلاجة الألبان، آخر المحل' };
 }
 function buildCheckouts(){
-  [1.4, 3.5, 5.6].forEach((x, i) => {
+  [-1.0, 1.35, 3.7, 6.05].forEach((x, i) => {
     const z0 = 1.3, len = 2.3, scanZ = z0 + 1.45;
     addBox('dark', .8, .86, len, x, .43, z0 + len / 2);
     addBox('white', .82, .03, len + .02, x, .875, z0 + len / 2);
@@ -1296,7 +1300,7 @@ function buildCheckouts(){
     addBox('led', .005, .18, .26, x + .259, 1.1, scanZ + .2);
     addBox('dark', .1, .05, .15, x - .3, .93, scanZ + .45);
     // the cashier's booth panel
-    addBox('dark', .04, 1.05, 1.2, x + 1.03, .525, scanZ);
+    addBox('dark', .04, 1.05, 1.2, x + 1.42, .525, scanZ);
     addBox('brand', .02, .12, len, x + .41, .78, z0 + len / 2);
     // lane number on a pole with a light on top
     addCyl('steel', .022, 2.1, x + .42, 1.05, z0);
@@ -1307,10 +1311,10 @@ function buildCheckouts(){
     COLL.push([x - .45, x + .45, z0 - .1, z0 + len + .1]);
     CHECKOUTS.push({ x, z0, scanZ, i });
   });
-  { const m = textPlane('المحاسبة', { w: 2.2, h: .4, color: '#FFFFFF', bg: '#0B7A4B' }); plane(m, 2.2, .4, 3.5, 2.75, .9, 0); addCyl('wire', .004, .5, 2.6, 3.1, .9); addCyl('wire', .004, .5, 4.4, 3.1, .9); }
+  { const m = textPlane('المحاسبة', { w: 2.2, h: .4, color: '#FFFFFF', bg: '#0B7A4B' }); plane(m, 2.2, .4, 2.5, 2.75, .9, 0); addCyl('wire', .004, .5, 1.6, 3.1, .9); addCyl('wire', .004, .5, 3.4, 3.1, .9); }
   // stack of red shopping baskets by the door
-  for (let i = 0; i < 6; i++){ addBox('red', .45, .03, .3, -1.6, .03 + i * .06, 3.9); addBox('red', .42, .06, .02, -1.6, .06 + i * .06, 4.04); addBox('red', .42, .06, .02, -1.6, .06 + i * .06, 3.76); }
-  COLL.push([-1.9, -1.3, 3.7, 4.1]);
+  for (let i = 0; i < 6; i++){ addBox('red', .45, .03, .3, -3.6, .03 + i * .06, 3.9); addBox('red', .42, .06, .02, -3.6, .06 + i * .06, 4.04); addBox('red', .42, .06, .02, -3.6, .06 + i * .06, 3.76); }
+  COLL.push([-3.9, -3.3, 3.7, 4.1]);
 }
 
 /* ---------- instancing ---------- */
@@ -1396,7 +1400,7 @@ async function makeThumbs(){
 }
 
 /* ---------- walking, looking, path finding ---------- */
-const me = { pos: new THREE.Vector3(-.6, 0, -.4), vel: new THREE.Vector3(), yaw: 0, pitch: -.06, tYaw: 0, tPitch: -.06, bob: 0 };
+const me = { pos: new THREE.Vector3(-2.6, 0, -.6), vel: new THREE.Vector3(), yaw: 0, pitch: -.06, tYaw: 0, tPitch: -.06, bob: 0 };
 let path = null;      // { pts:[V3], i, speed, look:V3, then }
 const joy = { on: false, id: null, cx: 0, cy: 0, x: 0, y: 0 };
 const keys = {};
@@ -1496,7 +1500,7 @@ function bindControls(cv){
     if (l.moved){
       if (l.touch){
         // finger right = turn right
-        me.tYaw -= (e.clientX - l.lx) * .0032 * (camera.fov / 70);
+        me.tYaw -= (e.clientX - l.lx) * .0038 * (camera.fov / 70);
         const dy = Math.max(-90, Math.min(90, e.clientY - l.y));
         const v = -dy / 90;
         drive.f = Math.abs(v) < .12 ? 0 : (v - Math.sign(v) * .12) / .88;
@@ -1663,7 +1667,7 @@ function addApron(p){
   const ap = new THREE.Mesh(new THREE.PlaneGeometry(.36, .62), new THREE.MeshStandardMaterial({ map: apronTex, roughness: .9, side: THREE.DoubleSide }));
   ap.position.set(w.x, w.y + .02, w.z + .145); scene.add(ap); sp.attach(ap);
 }
-function makeCart(){
+function makeCart(empty){
   const g = new THREE.Group(), m = MAT.steel, bar = (w, h, d, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); };
   [.55, .98].forEach(y => { bar(.5, .012, .012, 0, y, .4); bar(.5, .012, .012, 0, y, -.4); bar(.012, .012, .8, .25, y, 0); bar(.012, .012, .8, -.25, y, 0); });
   for (let z = -.4; z <= .41; z += .08){ bar(.006, .43, .006, .25, .765, z); bar(.006, .43, .006, -.25, .765, z); }
@@ -1674,7 +1678,7 @@ function makeCart(){
   [[.2, .3], [-.2, .3], [.2, -.32], [-.2, -.32]].forEach(([x, z]) => { bar(.014, .48, .014, x, .3, z); const w = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, .028, 14), MAT.kick); w.rotation.z = Math.PI / 2; w.position.set(x, .045, z); g.add(w); });
   bar(.4, .01, .6, 0, .16, 0);
   const items = P.filter(p => !p.shape.startsWith('fruit') && p.dims[1] < .3);
-  for (let i = 0; i < 5; i++){ const p = items[Math.floor(rnd() * items.length)], pg = new THREE.Group(); partsFor(p, 0).forEach(pt => pg.add(new THREE.Mesh(pt.g, pt.m))); pg.position.set((rnd() - .5) * .3, .56, (rnd() - .5) * .55); pg.rotation.set(0, rnd() * 6, i % 2 ? Math.PI / 2 * .9 : 0); g.add(pg); }
+  if (!empty) for (let i = 0; i < 5; i++){ const p = items[Math.floor(rnd() * items.length)], pg = new THREE.Group(); partsFor(p, 0).forEach(pt => pg.add(new THREE.Mesh(pt.g, pt.m))); pg.position.set((rnd() - .5) * .3, .56, (rnd() - .5) * .55); pg.rotation.set(0, rnd() * 6, i % 2 ? Math.PI / 2 * .9 : 0); g.add(pg); }
   return g;
 }
 function randomSpot(){
@@ -1718,15 +1722,44 @@ function stepAgent(p, dt){
     if (!p.path.length){ p.path = null; p.vel = 0; const cb = p.then; p.then = null; if (cb) cb(p); else arrive(p); return false; }
     return true;
   }
-  const ax = me.pos.x - p.pos.x, az = me.pos.z - p.pos.z, md = Math.hypot(ax, az);
-  let stop = md < 1.2 && (ax * dx + az * dz) / (md * d) > .35;
-  for (const o of NPCS){ if (o === p) continue; const bx = o.pos.x - p.pos.x, bz = o.pos.z - p.pos.z, bd = Math.hypot(bx, bz); if (bd < .85 && (bx * dx + bz * dz) / (bd * d) > .6 && (!o.path || o.vel < p.vel || o.role === 'queue')) stop = true; }
-  const want = stop ? 0 : p.speed * (p.path.length === 1 ? Math.min(1, d / .7 + .25) : 1);
+  // steer: head for the target, keep personal space from other people and from the visitor
+  let sx = dx / d, sz = dz / d, slow = 1;
+  const others = NPCS.concat(STAFF.map(s => s.p));
+  for (const o of others){
+    if (o === p || !o.pos) continue;
+    const bx = p.pos.x - o.pos.x, bz = p.pos.z - o.pos.z, bd = Math.hypot(bx, bz);
+    if (bd > 1.1 || bd < 1e-3) continue;
+    const w = (1.1 - bd) / bd * 1.4;
+    sx += bx * w; sz += bz * w;
+    const ahead = -(bx * dx + bz * dz) / (bd * d);
+    if (ahead > .7 && bd < .7) slow = Math.min(slow, o.path ? .55 : .25);
+  }
+  { const bx = p.pos.x - me.pos.x, bz = p.pos.z - me.pos.z, bd = Math.hypot(bx, bz);
+    if (bd < 1.4 && bd > 1e-3){ const w = (1.4 - bd) / bd * 2; sx += bx * w; sz += bz * w; if (-(bx * dx + bz * dz) / (bd * d) > .5 && bd < 1) slow = Math.min(slow, .15); } }
+  const sl = Math.hypot(sx, sz) || 1; sx /= sl; sz /= sl;
+  const want = p.speed * slow * (p.path.length === 1 ? Math.min(1, d / .7 + .25) : 1);
   p.vel += (want - p.vel) * Math.min(1, dt * 3);
-  p.pos.x += dx / d * p.vel * dt; p.pos.z += dz / d * p.vel * dt;
-  const yaw = nearAngle(p.g.rotation.y, Math.atan2(dx, dz));
+  const nx = p.pos.x + sx * p.vel * dt, nz = p.pos.z + sz * p.vel * dt;
+  if (!blockedStatic(nx, nz, .25)){ p.pos.x = nx; p.pos.z = nz; }
+  else if (!blockedStatic(p.pos.x + dx / d * p.vel * dt, p.pos.z + dz / d * p.vel * dt, .2)){ p.pos.x += dx / d * p.vel * dt; p.pos.z += dz / d * p.vel * dt; }
+  // stuck for a while: give up on this target and pick another
+  p.stuck = p.vel < .08 ? (p.stuck || 0) + dt : 0;
+  if (p.stuck > 4 && p.role === 'shopper'){ p.stuck = 0; goTo(p, randomSpot()); }
+  const yaw = nearAngle(p.g.rotation.y, Math.atan2(sx, sz));
   p.g.rotation.y += (yaw - p.g.rotation.y) * Math.min(1, dt * 5);
   return true;
+}
+// hard rule: two bodies never overlap
+function separate(){
+  const all = NPCS;
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++){
+    const a = all[i], b = all[j], dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = .5;
+    if (d >= min || d < 1e-4) continue;
+    const push = (min - d) / 2, ux = dx / d, uz = dz / d;
+    const aFix = a.inLine && !a.path, bFix = b.inLine && !b.path;
+    if (!aFix){ a.pos.x -= ux * push * (bFix ? 2 : 1); a.pos.z -= uz * push * (bFix ? 2 : 1); }
+    if (!bFix){ b.pos.x += ux * push * (aFix ? 2 : 1); b.pos.z += uz * push * (aFix ? 2 : 1); }
+  }
 }
 function arrive(p){
   if (p.role !== 'shopper') return;
@@ -1769,18 +1802,23 @@ function spawnStaff(){
     co.queue = []; co.state = 'idle'; co.items = 0; co.t = 0;
     const c = pool[(i * 2 + 1) % pool.length];
     const cs = makePerson(c, { apron: true, height: c.f ? 1.64 : 1.75 });
-    cs.g.position.set(co.x + .76, 0, co.scanZ - .05); cs.g.rotation.y = -Math.PI / 2;
+    cs.g.position.set(co.x + 1.02, 0, co.scanZ - .05); cs.g.rotation.y = -Math.PI / 2;
+    cs.pos.copy(cs.g.position);
     play(cs, 'typing');
+    // put the stool exactly under the seated pelvis, at the height the pose sits at
+    cs.mixer.update(.05); cs.g.updateMatrixWorld(true);
+    const hips = boneOf(cs, 'Hips'), hp = hips ? hips.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(co.x + 1.1, .62, co.scanZ);
+    const seatY = Math.max(.4, hp.y - .1);
     const stool = new THREE.Group();
-    const seat = new THREE.Mesh(new THREE.CylinderGeometry(.19, .19, .05, 20), MAT.dark); seat.position.y = .58; stool.add(seat);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, .56, 10), MAT.steel); leg.position.y = .29; stool.add(leg);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(.19, .19, .05, 20), MAT.dark); seat.position.y = seatY - .025; stool.add(seat);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, seatY - .05, 10), MAT.steel); leg.position.y = (seatY - .05) / 2; stool.add(leg);
     const base = new THREE.Mesh(new THREE.CylinderGeometry(.2, .22, .03, 20), MAT.steel); base.position.y = .015; stool.add(base);
-    stool.position.set(co.x + .86, 0, co.scanZ - .05); scene.add(stool);
+    stool.position.set(hp.x + .04, 0, hp.z); scene.add(stool);
     const item = new THREE.Group(); scene.add(item); item.visible = false;
     STAFF.push({ type: 'cashier', p: cs, co, item, sellable, t: 0, dur: 1.4, beeped: false });
-    COLL.push([co.x + .45, co.x + 1.1, co.scanZ - .45, co.scanZ + .4]);
+    COLL.push([co.x + .45, co.x + 1.45, co.scanZ - .45, co.scanZ + .4]);
     // customers already waiting when the visitor arrives
-    const n = i === 2 ? 1 : 2;
+    const n = i % 2 ? 1 : 2;
     for (let k = 0; k < n; k++){
       const q = spawnShopper(false); q.role = 'queue'; q.co = co; q.slot = k; co.queue.push(q); q.inLine = true;
       q.pos.copy(slotPos(co, k)); q.g.position.copy(q.pos); q.g.rotation.y = q.face = k === 0 ? Math.PI / 2 : 0; q.path = null;
@@ -1803,7 +1841,7 @@ function spawnStaff(){
   play(st, 'pick_up', { once: true });
   // produce assistant tidying the crates
   const pw = makePerson(RIGS.chars.find(c => c.f) || pool[0], { apron: true, height: 1.63 });
-  pw.g.position.set(-5.75, 0, 2.6); pw.g.rotation.y = -Math.PI / 2;
+  pw.g.position.set(-5.75, 0, 2.6); pw.g.rotation.y = -Math.PI / 2; pw.pos.copy(pw.g.position);
   STAFF.push({ type: 'produce', p: pw, t: 0 }); play(pw, 'look');
 }
 function setItem(st){
@@ -1863,12 +1901,13 @@ function spawnNPCs(){
   loadRigs().then(r => {
     RIGS = r;
     spawnStaff();
-    for (let i = 0; i < (coarse ? 5 : 8); i++) spawnShopper(false);
+    for (let i = 0; i < (coarse ? 8 : 12); i++) spawnShopper(false);
     if (AUD.ctx) AUD.refreshCarts && AUD.refreshCarts();
   }).catch(e => console.warn('people not loaded', e));
 }
 function updateNPCs(dt){
   if (!RIGS) return;
+  separate();
   for (const p of NPCS.slice()){
     const d = Math.hypot(p.pos.x - me.pos.x, p.pos.z - me.pos.z);
     if (p.role === 'queue' || p.role === 'leaving'){
@@ -1884,7 +1923,9 @@ function updateNPCs(dt){
 }
 
 /* ---------- store sound: real recordings ---------- */
-const AUD = { ctx: null, on: mem.get('bd3_sound', true), buf: {}, carts: new Map() };
+const AUD = { ctx: null, on: mem.get('bd3_sound', true), buf: {}, carts: new Map(), pre: {} };
+// start downloading the sounds right away, so they're ready by the first tap
+function preloadSounds(){ ['ambience', 'scan_beep', 'cart', 'chime', 'register', 'steps', 'fridge'].forEach(n => { AUD.pre[n] = fetch(`sounds/snd_${n}.mp3`).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }); AUD.pre[n].catch(() => {}); }); }
 const SOUNDS = ['ambience', 'scan_beep', 'cart', 'chime', 'register', 'steps', 'fridge'];
 function audioReady(){ return AUD.ctx && AUD.on && AUD.ctx.state === 'running' && !document.hidden; }
 async function audioStart(){
@@ -1900,10 +1941,12 @@ async function audioStart(){
   ctx.resume();
   try { const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, 22050); s.connect(ctx.destination); s.start(0); } catch(e){}
   AUD.master = ctx.createGain(); AUD.master.gain.value = 1; AUD.master.connect(ctx.destination);
-  await Promise.all(SOUNDS.map(n => fetch(`sounds/snd_${n}.mp3`).then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej))).then(d => { AUD.buf[n] = d; }).catch(() => {})));
-  AUD.amb = loopSrc('ambience', .55);
-  AUD.fridge = loopSrc('fridge', 0);
-  AUD.steps = loopSrc('steps', 0);
+  // the files were already downloading since the page opened; decode each and start its loop as soon as it's ready
+  const LOOPS = { ambience: ['amb', .55], fridge: ['fridge', 0], steps: ['steps', 0] };
+  SOUNDS.forEach(n => (AUD.pre[n] || Promise.reject()).then(b => new Promise((res, rej) => ctx.decodeAudioData(b.slice(0), res, rej))).then(d => {
+    AUD.buf[n] = d;
+    if (LOOPS[n]) AUD[LOOPS[n][0]] = loopSrc(n, LOOPS[n][1]);
+  }).catch(() => {}));
   const pa = () => { playAt('chime', null, .55); AUD.paT = setTimeout(pa, 70000 + Math.random() * 60000); };
   AUD.paT = setTimeout(pa, 15000);
 }
@@ -1974,7 +2017,7 @@ function loop(now){
     }
   } else if (!openSheet){
     let f = 0, turn = 0, str = 0;
-    if (drive.f){ f = drive.f * .55; me.tPitch += (-.06 - me.tPitch) * Math.min(1, dt * 2); }
+    if (drive.f){ f = drive.f * .7; me.tPitch += (-.06 - me.tPitch) * Math.min(1, dt * 2); }
     if (keys.w || keys.arrowup) f += 1;
     if (keys.s || keys.arrowdown) f -= 1;
     if (keys.a) str -= 1;
@@ -2040,7 +2083,7 @@ async function init3D(){
   progress(.25); await nextFrame();
   buildShelving();
   progress(.45, 'بنعبّي الثلاجات…'); await nextFrame();
-  buildFridges(); buildCheckouts();
+  buildFridges(); buildCheckouts(); buildPosters();
   progress(.6, 'بنرتّب الخضرة…'); await nextFrame();
   buildProduce();
   progress(.72, 'بنحط الأسعار…'); await nextFrame();
@@ -2061,21 +2104,31 @@ async function init3D(){
 let coachShown = false;
 function hideCoach(){ if (!coachShown) return; coachShown = false; $('#coach').hidden = true; mem.set('bd2_coach', true); }
 async function boot(){
+  preloadSounds();
   renderChips(); initDeal(); refreshCart();
   await fontsReady();
   try { gl = await init3D(); } catch(e){ console.error(e); gl = false; }
   setView(gl ? 'store' : 'list');
   progress(1);
-  const ld = $('#loader'); ld.classList.add('out'); setTimeout(() => ld.hidden = true, 600);
-  if (gl && !mem.get('bd2_coach', false)){
-    if (!coarse){ $('#coachZones').hidden = true; $('#coachTxt').innerHTML = '<b>للتنقل:</b> اضغط على الأرض لتمشي لهناك، أو امشِ بأزرار W A S D. اسحب بالماوس لتلتفت، واضغط على أي منتج لتشوف سعره.'; }
-    $('#coach').hidden = false; coachShown = true;
-  }
-  $('#coachOk').addEventListener('click', hideCoach);
-  // sound can only start after the visitor touches the page
-  // phones only allow sound that starts inside a tap, so the audio is created on the first real touch
+  // phones only allow sound that starts inside a tap, so entering the store is that tap
   setSound(AUD.on, true);
-  const GESTURES = ['pointerup', 'touchend', 'click', 'keydown'];
+  const ld = $('#loader');
+  $('#ldTxt').textContent = 'المحل جاهز'; $('#ldGo').hidden = false;
+  $('#ldGo').addEventListener('click', () => {
+    if (AUD.on) audioStart();
+    ld.classList.add('out'); setTimeout(() => ld.hidden = true, 500);
+    if (gl && !mem.get('bd2_coach', false)){
+      if (!coarse){ $('#coachZones').hidden = true; $('#coachTxt').innerHTML = '<b>للتنقل:</b> اضغط على الأرض لتمشي لهناك، أو امشِ بأزرار W A S D. اسحب بالماوس لتلتفت، واضغط على أي منتج لتشوف سعره.'; }
+      $('#coach').hidden = false; coachShown = true;
+    }
+  });
+  $('#coachOk').addEventListener('click', hideCoach);
+  // leaving the browser or switching apps pauses the store's sound; coming back resumes it
+  const quiet = () => { if (AUD.ctx && AUD.ctx.state === 'running') AUD.ctx.suspend(); if (AUD.html) AUD.html.pause(); };
+  const wakeUp = () => { if (!AUD.on || !AUD.ctx) return; AUD.ctx.resume(); if (AUD.html && AUD.html.paused) AUD.html.play().catch(() => {}); };
+  document.addEventListener('visibilitychange', () => document.hidden ? quiet() : wakeUp());
+  addEventListener('pagehide', quiet); addEventListener('blur', () => { if (coarse) quiet(); }); addEventListener('focus', wakeUp);
+  const GESTURES = ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'click', 'keydown'];
   const unlock = () => {
     if (!AUD.on) return;
     audioStart();
@@ -2087,10 +2140,88 @@ async function boot(){
     setSound(!AUD.on);
   });
   measure();
-  if (gl) setTimeout(async () => { await makeThumbs().catch(() => {}); refreshCart(); }, 300);
+  if (gl) setTimeout(async () => { await makeThumbs().catch(() => {}); refreshCart(); paintPosters().catch(() => {}); }, 300);
   else makeThumbsFallback();
 }
 function makeThumbsFallback(){ /* no WebGL: list view shows neutral placeholders */ }
+
+/* ---------- printed promo posters on the walls, made from the product photos ---------- */
+const POSTERS = [];
+function loadImg(src){ return new Promise(res => { if (!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }); }
+function burst(x, cx, cy, r, color, n = 18){
+  x.beginPath();
+  for (let i = 0; i < n * 2; i++){ const a = i / (n * 2) * Math.PI * 2, rr2 = i % 2 ? r * .82 : r; x.lineTo(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2); }
+  x.closePath(); x.fillStyle = color; x.fill();
+}
+function priceTag(x, cx, cy, r, p){
+  burst(x, cx, cy, r, '#FFE14D');
+  x.fillStyle = '#C8102E'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.direction = 'ltr';
+  x.font = `700 ${r * .62}px ${F_UI}`; x.fillText(num(p.price), cx - r * .08, cy - r * .02);
+  x.font = `700 ${r * .26}px ${F_UI}`; x.fillText('₪', cx + r * .55, cy - r * .18);
+  if (p.old){ x.fillStyle = '#1C1D1B'; x.font = `500 ${r * .22}px ${F_UI}`; const o = num(p.old) + ' ₪'; x.fillText(o, cx, cy + r * .45); const w = x.measureText(o).width; x.fillRect(cx - w / 2, cy + r * .45, w, 3); }
+}
+async function drawPoster(spec){
+  const c = canvas(spec.w, spec.h), x = c.getContext('2d'), W = spec.w, H = spec.h;
+  const ims = await Promise.all((spec.items || []).map(id => loadImg(thumbs[id])));
+  x.fillStyle = spec.bg; x.fillRect(0, 0, W, H);
+  const g = x.createRadialGradient(W * .5, H * .45, 10, W * .5, H * .45, Math.max(W, H) * .7); g.addColorStop(0, 'rgba(255,255,255,.28)'); g.addColorStop(1, 'rgba(0,0,0,.12)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.direction = 'rtl'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  if (spec.kind === 'deal'){
+    const p = byId[spec.items[0]];
+    x.fillStyle = '#FFE14D'; x.fillRect(0, 0, W, H * .15); x.fillStyle = '#C8102E'; x.font = `${H * .085}px ${F_PUNCH}`; x.fillText(spec.title, W / 2, H * .085);
+    if (ims[0]) x.drawImage(ims[0], W * .1, H * .17, W * .8, W * .8);
+    x.fillStyle = '#FFFFFF'; fit(x, `${p.name} ${p.size}`, 700, H * .05, F_UI, W * .9); x.fillText(`${p.name} ${p.size}`, W / 2, H * .76);
+    priceTag(x, W * .72, H * .87, W * .2, p);
+    x.fillStyle = 'rgba(255,255,255,.8)'; x.font = `500 ${H * .026}px ${F_UI}`; x.textAlign = 'right'; x.fillText(spec.note || 'حتى نفاد الكمية', W * .52, H * .9);
+  } else if (spec.kind === 'grid'){
+    x.fillStyle = '#FFFFFF'; x.font = `${H * .08}px ${F_PUNCH}`; x.fillText(spec.title, W / 2, H * .1);
+    x.font = `500 ${H * .032}px ${F_UI}`; x.fillText(spec.sub, W / 2, H * .17);
+    const cols = 2, cw = W * .42, ch = H * .24;
+    ims.forEach((im, i) => {
+      const cx = W * .5 + (i % cols ? -1 : 1) * W * .22, cy = H * .33 + Math.floor(i / cols) * ch;
+      x.fillStyle = 'rgba(255,255,255,.92)'; rr(x, cx - cw / 2, cy - ch * .45, cw, ch * .9, 18); x.fill();
+      if (im) x.drawImage(im, cx - cw * .32, cy - ch * .42, cw * .64, cw * .64 * im.height / im.width > ch * .6 ? ch * .6 : cw * .64);
+      const p = byId[spec.items[i]]; x.fillStyle = '#1C1D1B'; fit(x, p.name, 600, H * .026, F_UI, cw * .9); x.fillText(p.name, cx, cy + ch * .25);
+      x.fillStyle = '#C8102E'; x.font = `700 ${H * .03}px ${F_UI}`; x.fillText(fmt(p.price), cx, cy + ch * .36);
+    });
+  } else if (spec.kind === 'banner'){
+    x.fillStyle = '#FFFFFF'; x.font = `${H * .36}px ${F_PUNCH}`; x.textAlign = 'right'; x.fillText(spec.title, W * .62, H * .42);
+    x.font = `500 ${H * .14}px ${F_UI}`; x.fillText(spec.sub, W * .62, H * .74);
+    ims.forEach((im, i) => { if (im) x.drawImage(im, W * (.04 + i * .11), H * .1, H * .8, H * .8); });
+    if (spec.priceOf) priceTag(x, W * .82, H * .5, H * .4, byId[spec.priceOf]);
+  } else if (spec.kind === 'card'){
+    x.fillStyle = '#FFFFFF'; x.font = `${H * .085}px ${F_PUNCH}`; x.fillText(spec.title, W / 2, H * .11);
+    x.save(); x.translate(W / 2, H * .4); x.rotate(-.12);
+    x.fillStyle = '#0B7A4B'; rr(x, -W * .36, -H * .12, W * .72, H * .24, 26); x.fill();
+    x.fillStyle = '#FFE14D'; x.font = `${H * .07}px ${F_PUNCH}`; x.fillText(STORE.short, 0, -H * .03);
+    x.fillStyle = 'rgba(255,255,255,.85)'; x.font = `500 ${H * .025}px ${F_UI}`; x.fillText('بطاقة الولاء', 0, H * .06); x.restore();
+    x.fillStyle = '#FFFFFF'; x.font = `700 ${H * .045}px ${F_UI}`; x.fillText(spec.sub, W / 2, H * .68);
+    x.font = `500 ${H * .03}px ${F_UI}`; x.fillText(spec.note, W / 2, H * .76);
+  }
+  x.strokeStyle = 'rgba(0,0,0,.25)'; x.lineWidth = 6; x.strokeRect(3, 3, W - 6, H - 6);
+  return c;
+}
+function placePoster(spec, w, h, pos, ry){
+  const mat = new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: .35 });
+  const m = plane(mat, w, h, pos[0], pos[1], pos[2], ry);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(w + .05, h + .05, .02), MAT.dark); frame.position.set(pos[0], pos[1], pos[2]); frame.rotation.y = ry; frame.translateZ(-.012); scene.add(frame);
+  POSTERS.push({ spec, mat });
+}
+function buildPosters(){
+  const R = -Math.PI / 2, Lw = Math.PI / 2;
+  placePoster({ kind: 'deal', w: 600, h: 840, bg: '#C8102E', title: 'عرض اليوم', items: ['oil'] }, 1.05, 1.47, [X1 - .03, 1.85, -2.7], R);
+  placePoster({ kind: 'grid', w: 600, h: 840, bg: '#1E7A3C', title: '٢ + ١ مجاناً', sub: 'على السناكات والمشروبات', items: ['chips', 'cola', 'popcorn', 'juice'] }, 1.05, 1.47, [X1 - .03, 1.85, -4.6], R);
+  placePoster({ kind: 'grid', w: 600, h: 840, bg: '#2E7D32', title: 'طازج كل يوم', sub: 'من الحقل لبيتك', items: ['tomato', 'orange', 'apple', 'banana'] }, .78, 1.1, [X0 + .03, 1.95, 2.9], Lw);
+  placePoster({ kind: 'card', w: 600, h: 840, bg: '#123B2A', title: 'بطاقة البيدر', sub: 'اجمع نقطة على كل شيكل', note: 'واستبدل نقاطك بمشتريات' }, .78, 1.1, [X0 + .03, 1.95, -3.3], Lw);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#1565C0', title: 'عروض الألبان', sub: 'طازجة كل صباح', items: ['milk', 'labneh', 'cheese'], priceOf: 'labneh' }, 2.1, .56, [-4.55, 2.68, Z0 + .03], 0);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#C8102E', title: 'توصيل مجاني', sub: `للطلبات فوق ${STORE.freeDelivery} ₪`, items: ['rice', 'water', 'laundry'] }, 2.1, .56, [4.55, 2.68, Z0 + .03], 0);
+  // nested carts parked by the door
+  for (let i = 0; i < 4; i++){ const c = makeCart(true); c.position.set(-5.0, 0, 3.5 + i * .22); c.rotation.y = Math.PI; scene.add(c); }
+  COLL.push([-5.35, -4.65, 2.9, 4.6]);
+}
+async function paintPosters(){
+  for (const p of POSTERS){ const c = await drawPoster(p.spec); p.mat.map = tex(c); p.mat.needsUpdate = true; }
+}
 boot();
 </script>
 
