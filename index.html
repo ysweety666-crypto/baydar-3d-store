@@ -1757,7 +1757,7 @@ function climb(to, then){
   const pts = up
     ? [[STAIR.bottom.x, 0, z], [xb, 0, z], [xt, H2, z], [-4.75, H2, z], [STAIR.top.x, H2, STAIR.top.z]]
     : [[STAIR.top.x, H2, STAIR.top.z], [-4.75, H2, z], [xt, H2, z], [xb, 0, z], [STAIR.bottom.x, 0, z], [1.2, 0, -12.4]];
-  me.climb = { pts: pts.map(p => new THREE.Vector3(...p)), i: 1, to, then };
+  me.climb = { pts: pts.map(p => new THREE.Vector3(...p)), i: 1, to, then, auto: !!then };
   path = null; me.vel.set(0, 0, 0);
 }
 function goToProduct(id, openAfter){
@@ -2332,16 +2332,48 @@ function loop(now){
   if (view !== 'store' || document.hidden) return;
   const fwdV = new THREE.Vector3(-Math.sin(me.yaw), 0, -Math.cos(me.yaw)), rightV = new THREE.Vector3(Math.cos(me.yaw), 0, -Math.sin(me.yaw));
   const want = new THREE.Vector3();
+  // the player's own stick / keys this frame
+  let inF = 0, inTurn = 0, inStr = 0;
+  if (!openSheet){
+    if (drive.f) inF = drive.f * .7;
+    if (drive.t) inTurn = drive.t * 1.1;
+    if (keys.w || keys.arrowup) inF += 1;
+    if (keys.s || keys.arrowdown) inF -= 1;
+    if (keys.a) inStr -= 1;
+    if (keys.d) inStr += 1;
+    if (keys.arrowleft) inTurn += 1;
+    if (keys.arrowright) inTurn -= 1;
+  }
   if (me.climb){
-    // on the stairs: follow the steps at a calm pace
-    const c = me.climb, tgt = c.pts[c.i], cur = new THREE.Vector3(me.pos.x, me.y, me.pos.z), d = cur.distanceTo(tgt);
-    if (d < .05){ c.i++; if (c.i >= c.pts.length){ me.floor = c.to; me.y = c.to ? H2 : 0; me.climb = null; if (c.then) c.then(); } }
-    else {
-      const step = Math.min(d, (reduceMotion ? 20 : 1.25) * dt), dir = tgt.clone().sub(cur).normalize();
-      me.pos.x += dir.x * step; me.pos.z += dir.z * step; me.y += dir.y * step;
-      if (Math.hypot(dir.x, dir.z) > .3) me.tYaw = nearAngle(me.yaw, Math.atan2(-dir.x, -dir.z));
-      me.tPitch = dir.y > .2 ? .12 : dir.y < -.2 ? -.28 : -.06;
-      me.bob += dt * 1.25 * 5.6;
+    // on the stairs: the stick moves you up or down the steps (whichever way you face), you can stop, turn and look around;
+    // a trip started from the floor button carries on by itself while the stick is untouched
+    const c = me.climb, cur = new THREE.Vector3(me.pos.x, me.y, me.pos.z);
+    me.tYaw += inTurn * dt * 1.5;
+    const seg = c.pts[c.i].clone().sub(c.pts[c.i - 1]); seg.y = 0; if (seg.lengthSq() > 1e-6) seg.normalize();
+    const push = fwdV.clone().multiplyScalar(inF).addScaledVector(rightV, inStr);
+    let go = 0;
+    if (push.lengthSq() > .01){
+      // at the landings the steps turn under you: a push across the stairs keeps going the way you were going
+      c.auto = false; const dp = push.dot(seg) / push.length();
+      go = (Math.abs(dp) > .35 ? Math.sign(dp) : c.lastGo || Math.sign(inF) || 1) * Math.min(1, push.length()); c.lastGo = Math.sign(go);
+    }
+    else if (c.auto) go = 1;
+    if (go){
+      const tgt = go > 0 ? c.pts[c.i] : c.pts[c.i - 1], d = cur.distanceTo(tgt);
+      if (d < .05){
+        if (go > 0){ c.i++; if (c.i >= c.pts.length){ me.floor = c.to; me.y = c.to ? H2 : 0; me.climb = null; if (c.then) c.then(); } }
+        else if (c.i > 1) c.i--;
+        else { me.y = c.to ? 0 : H2; me.climb = null; }   // walked back off the stairs where you started
+      } else {
+        const sp = (reduceMotion ? 20 : 1.25) * Math.abs(go), step = Math.min(d, sp * dt), dir = tgt.clone().sub(cur).normalize();
+        me.pos.x += dir.x * step; me.pos.z += dir.z * step; me.y += dir.y * step;
+        const travel = Math.atan2(-dir.x, -dir.z);
+        if (c.auto){
+          if (Math.hypot(dir.x, dir.z) > .3) me.tYaw = nearAngle(me.yaw, travel);
+          me.tPitch = dir.y > .2 ? .12 : dir.y < -.2 ? -.28 : -.06;
+        } else if (go > 0 && Math.hypot(dir.x, dir.z) > .3){ const a = nearAngle(me.tYaw, travel); me.tYaw += (a - me.tYaw) * Math.min(1, dt * 1.6); }
+        me.bob += dt * sp * 5.6;
+      }
     }
   } else if (path){
     const tgt = path.pts[path.i];
@@ -2356,15 +2388,7 @@ function loop(now){
       if (!path.look || path.i < path.pts.length - 1) me.tPitch += (-.06 - me.tPitch) * Math.min(1, dt * 2);
     }
   } else if (!openSheet){
-    let f = 0, turn = 0, str = 0;
-    if (drive.f) f = drive.f * .7;
-    if (drive.t) turn = drive.t * 1.1;
-    if (keys.w || keys.arrowup) f += 1;
-    if (keys.s || keys.arrowdown) f -= 1;
-    if (keys.a) str -= 1;
-    if (keys.d) str += 1;
-    if (keys.arrowleft) turn += 1;
-    if (keys.arrowright) turn -= 1;
+    const f = inF, turn = inTurn, str = inStr;
     me.tYaw += turn * dt * 1.5;
     const sp = 2.1 * Math.min(1, Math.hypot(f, str));
     if (sp > .01){ want.addScaledVector(fwdV, f).addScaledVector(rightV, str).normalize().multiplyScalar(sp * (f < 0 ? .6 : 1)); }
@@ -2381,7 +2405,7 @@ function loop(now){
   // walking into the foot of the stairs (or onto the top landing) takes you up or down
   if (!me.climb && !path && want.lengthSq() > .04){
     if (me.floor === 0 && me.pos.x < 1.75 && me.pos.z < -12.55 && want.x < -.25) climb(1);
-    else if (me.floor === 1 && me.pos.x < -4.2 && me.pos.z < -12.6 && want.z < -.25) climb(0);
+    else if (me.floor === 1 && me.pos.x < -4.1 && me.pos.z < -12.25 && want.z < -.25) climb(0);
   }
   updateFloorChip();
   me.yaw += (me.tYaw - me.yaw) * (1 - Math.exp(-dt * (path ? 6 : 12)));
