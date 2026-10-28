@@ -751,6 +751,10 @@ const X0 = -5, X1 = 5, Z0 = -14, Z1 = 5, CEIL = 3.0, EYE = 1.62;
 const GZ0 = -10.6, GZ1 = -1.4;
 const AISLE_X = [-3.8, -1.4, 1.0, 3.42], FRONT_Z = .15, BACK_Z = -12.3;
 let FRAME = null; // optional transform applied to static geometry built in a local frame
+const H2 = 3.2, CEIL2 = H2 + 2.9;                       // the upper floor sits on a slab above the shop
+const HOLE = { x0: -4.5, x1: .6, z0: -14, z1: -12.9 };  // stair opening in the slab
+const STAIR = { x0: .5, run: 5.0, steps: 18, z: -13.45, w: 1.0, bottom: new THREE.Vector3(1.15, 0, -13.45), top: new THREE.Vector3(-4.75, 0, -12.45) };
+let BUILD_Y = 0, PHOTO_SET = 'g';
 const COLL = [];
 const pickables = [];
 const blocks = {};
@@ -936,6 +940,7 @@ function flushStatic(){
     const merged = mergeGeometries(geos, false);
     const mesh = new THREE.Mesh(merged, MAT[k]);
     if (k === 'glass') mesh.renderOrder = 5;
+    if (k.startsWith('photo')){ mesh.userData.photo = true; pickables.push(mesh); }
     scene.add(mesh);
     if (k === 'floor') floorMesh = mesh;
   }
@@ -1079,21 +1084,21 @@ function fillFace(f){
       const rows = Math.max(1, Math.min(2, Math.floor((f.depth - .02) / (d + .008))));
       const maxStack = Math.floor(gap / (h + .003));
       const stack = h < .1 ? Math.min(maxStack, h < .06 ? 4 : 2) : (maxStack >= 2 && h < .16 ? 2 : 1);
-      const arr = (INST[p.id + '|' + vi] ||= []);
+      const arr = f.ghost ? [] : (INST[p.id + '|' + vi] ||= []);
       for (let i = 0; i < n; i++) for (let r = 0; r < rows; r++){
         if (r === 0 && rnd() < .05 && n > 3) continue; // a missing facing, like a real shelf mid-day
         for (let st = 0; st < stack; st++){
           const along = s + pitch * (i + .5) + (rnd() - .5) * .006;
           const inward = .02 + d / 2 + r * (d + .008) + (r === 0 ? rnd() * .025 : 0);
           const pos = f.o.clone().addScaledVector(f.along, along).addScaledVector(f.normal, -inward);
-          pos.y = y + st * (h + .003);
+          pos.y = f.o.y + y + st * (h + .003);
           arr.push({ pos, rot: rot + (rnd() - .5) * .07 });
         }
       }
       const bw = n * pitch, center = f.o.clone().addScaledVector(f.along, s + bw / 2);
-      TAGS.push({ p, pos: center.clone().addScaledVector(f.normal, .012), y: y - .03, rot });
+      if (!f.ghost) TAGS.push({ p, pos: center.clone().addScaledVector(f.normal, .012), y: f.o.y + y - .03, rot });
       const blk = { pos: center.clone().addScaledVector(f.normal, -d / 2), y, h: h * stack, w: bw, normal: f.normal.clone(), shelf: si, nShelves: f.shelves.length, where: f.where };
-      blk.pos.y = y + Math.min(h * stack, .3) / 2;
+      blk.pos.y = f.o.y + y + Math.min(h * stack, .3) / 2;
       (blocks[p.id] ||= []).push(blk);
       s += bw + .025;
     }
@@ -1109,6 +1114,27 @@ const SHELF_NAMES5 = ['الرف السفلي', 'الرف الثاني', 'الر�
 const GX = [-2.6, -.2, 2.2];                 // gondola centres
 const SHELF_Y = [.1, .45, .8, 1.15, 1.5], G_TOP = 1.85, G_HALF = .45;
 const PINK = '#E2307F';
+const ATLAS_N = 3, ATLAS_ROWS = 10, ATLAS_W = 2048, ROW_PX = 200;
+// fill every shelf level of a run with real shelf photos, in random 1.6–3 m pieces so it never repeats in sight
+function photoShelf(len){
+  SHELF_Y.forEach((y, i) => {
+    const top = i < SHELF_Y.length - 1 ? SHELF_Y[i + 1] - .024 : G_TOP - .02, h = top - y - .01;
+    if (h < .1) return;
+    const pxm = ROW_PX / h;
+    let u = -len / 2;
+    while (u < len / 2 - .02){
+      const seg = Math.min(len / 2 - u, 1.6 + rnd() * 1.4);
+      const a = Math.floor(rnd() * ATLAS_N), r = Math.floor(rnd() * ATLAS_ROWS);
+      const uw = Math.min(.99, seg * pxm / ATLAS_W), u0 = rnd() * (1 - uw);
+      const v0 = 1 - (r + 1) / ATLAS_ROWS + .003, v1 = 1 - r / ATLAS_ROWS - .003;
+      const g = new THREE.PlaneGeometry(seg, h), uv = g.attributes.uv;
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, u0 + uv.getX(k) * uw, v0 + uv.getY(k) * (v1 - v0));
+      g.translate(u + seg / 2, y + h / 2, -.13);
+      addG('photo' + PHOTO_SET + a, g);
+      u += seg;
+    }
+  });
+}
 function scaleU(g, k){ const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * k); }
 function withFrame(m, fn){ const prev = FRAME; FRAME = m; fn(); FRAME = prev; }
 function minimarketMaterials(){
@@ -1127,6 +1153,26 @@ function minimarketMaterials(){
   MAT.cardboard = S({ color: '#B88A55', roughness: .95 });
   MAT.sack = S({ color: '#F1EEE6', roughness: .85 });
   MAT.film = S({ color: '#FFFFFF', roughness: .1, transparent: true, opacity: .18, depthWrite: false });
+  // shelf rows photographed in the real shop (cut out of the owner's video, straightened)
+  const tl = new THREE.TextureLoader();
+  for (const set of ['g', 'u']) for (let a = 0; a < ATLAS_N; a++){
+    const t = tl.load(`shelves/shelf_${set}${a}.jpg`); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = THREE.ClampToEdgeWrapping;
+    MAT['photo' + set + a] = new THREE.MeshBasicMaterial({ map: t, color: '#E9E9E9', toneMapped: false });
+  }
+  const gc = canvas(256, 256), gx = gc.getContext('2d'); gx.fillStyle = '#8E8E8A'; gx.fillRect(0, 0, 256, 256);
+  for (let k = 0; k < 2600; k++){ const v = 60 + Math.random() * 150; gx.fillStyle = `rgba(${v},${v},${v - 4},.55)`; gx.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3); }
+  const gt = tex(gc); gt.wrapS = gt.wrapT = THREE.RepeatWrapping;
+  MAT.granite = S({ map: gt, roughness: .3, metalness: .05 });
+  // small white price labels clipped to the pink rails, 4 x 4 different ones in one texture
+  const lc = canvas(512, 256), lx = lc.getContext('2d');
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++){
+    const x = i * 128, y = j * 64;
+    lx.fillStyle = '#FFFFFF'; lx.fillRect(x + 2, y + 2, 124, 60);
+    lx.fillStyle = (i + j) % 3 ? '#1C1D1B' : '#C8102E'; lx.font = `700 30px ${F_UI}`; lx.textAlign = 'center'; lx.textBaseline = 'middle';
+    lx.fillText((2 + ((i * 7 + j * 3) % 23) + ((i + j) % 2 ? .5 : .9)).toFixed(2), x + 64, y + 36);
+    lx.fillStyle = '#9AA09C'; lx.fillRect(x + 12, y + 10, 70, 4);
+  }
+  MAT.tagw = S({ map: tex(lc), roughness: .5 });
 }
 // one shelf run: plinth, white shelves, pink price rail, white wire fence, products; c = centre of the front edge on the floor
 function shelfFace(c, normal, len, o){
@@ -1136,17 +1182,24 @@ function shelfFace(c, normal, len, o){
     addBox('shelfWhite', len, .1, D, 0, .05, -D / 2);
     addBox('pink', len, .1, .008, 0, .05, .004);
     SHELF_Y.forEach((y, i) => {
+      // price labels along the rail
+      for (let u = -len / 2 + .15 + rnd() * .2; u < len / 2 - .05; u += .32 + rnd() * .3){
+        const lg = new THREE.PlaneGeometry(.075, .037), luv = lg.attributes.uv, ci = Math.floor(rnd() * 4), cj = Math.floor(rnd() * 4);
+        for (let k = 0; k < luv.count; k++) luv.setXY(k, (ci + luv.getX(k)) / 4, (cj + luv.getY(k)) / 4);
+        lg.translate(u, y - .026 + (i ? 0 : .055), .0095); addG('tagw', lg);
+      }
       if (i){ addBox('shelfWhite', len, .02, D, 0, y - .01, -D / 2); addBox('pink', len, .05, .008, 0, y - .025, .004);
         const g = new THREE.PlaneGeometry(len, .075); scaleU(g, len / .24); g.translate(0, y + .04, .002); addG('fence', g); }
       const sg = new THREE.PlaneGeometry(len, .22); sg.translate(0, y + (i ? -.13 : .25), -D + .006); addG('aoV', sg);
     });
     if (o.back) addBox('shelfWhite', len, G_TOP, .03, 0, G_TOP / 2, -D - .015);
+    if (o.photo !== false) photoShelf(len);
     for (let u = -len / 2; u <= len / 2 + .01; u += 1.0) addBox('shelfWhite', .03, G_TOP, .04, u, G_TOP / 2, -D + .02);
     addBox('shelfWhite', len, .04, D, 0, G_TOP, -D / 2);
   });
-  fillFace({ o: c.clone().addScaledVector(along, -len / 2), along, normal, len, shelves: SHELF_Y, top: G_TOP, depth: D - .02, list: o.list, seed: o.seed || 0, where: o.where });
+  fillFace({ o: c.clone().addScaledVector(along, -len / 2), along, normal, len, shelves: SHELF_Y, top: G_TOP, depth: D - .02, list: o.list, seed: o.seed || 0, where: o.where, ghost: o.photo !== false });
   aoStrip(c.x, c.z, len, .45, Math.atan2(normal.x, normal.z));
-  if (o.cat && !CAT_SPOT[o.cat]) CAT_SPOT[o.cat] = { stand: c.clone().addScaledVector(normal, .74), look: new THREE.Vector3(c.x, 1.0, c.z).addScaledVector(along, -.8), where: o.where.split('،')[0] + ' • ' + catById[o.cat].name };
+  if (o.cat && !CAT_SPOT[o.cat]) CAT_SPOT[o.cat] = { stand: c.clone().addScaledVector(normal, .74), look: new THREE.Vector3(c.x, c.y + 1.0, c.z).addScaledVector(along, -.8), where: o.where.split('،')[0] + ' • ' + catById[o.cat].name };
 }
 // rounded end shelf on a gondola (dir 1 = front end, -1 = back end)
 function roundCap(x, z, dir, ids, where){
@@ -1169,17 +1222,17 @@ function roundCap(x, z, dir, ids, where){
       for (let k = 0; k < n; k++){
         const a = t0 + (k + .5 + off * 0) / n * Math.PI;
         const st = h < .1 ? 2 : 1;
-        for (let s = 0; s < st; s++) arr.push({ pos: new THREE.Vector3(x + Math.sin(a) * rr2, y + s * (h + .003), z + Math.cos(a) * rr2), rot: a + (rnd() - .5) * .08 });
+        for (let s = 0; s < st; s++) arr.push({ pos: new THREE.Vector3(x + Math.sin(a) * rr2, BUILD_Y + y + s * (h + .003), z + Math.cos(a) * rr2), rot: a + (rnd() - .5) * .08 });
       }
     });
-    const b = { pos: new THREE.Vector3(x, y + .12, z + dir * .3), y, h, w: .6, normal: new THREE.Vector3(0, 0, dir), shelf: si, nShelves: 5, where };
+    const b = { pos: new THREE.Vector3(x, BUILD_Y + y + .12, z + dir * .3), y, h, w: .6, normal: new THREE.Vector3(0, 0, dir), shelf: si, nShelves: 5, where };
     (blocks[p.id] ||= []).push(b);
   });
 }
 function gondolaMM(x, faces, capF, capB){
   const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2;
   addBox('shelfWhite', .06, G_TOP, len, x, G_TOP / 2, zc);
-  [-1, 1].forEach((s, k) => shelfFace(new THREE.Vector3(x + s * G_HALF, 0, zc), new THREE.Vector3(s, 0, 0), len, { ...faces[k], depth: G_HALF - .03 }));
+  [-1, 1].forEach((s, k) => shelfFace(new THREE.Vector3(x + s * G_HALF, BUILD_Y, zc), new THREE.Vector3(s, 0, 0), len, { ...faces[k], depth: G_HALF - .03 }));
   roundCap(x, GZ1, 1, capF.ids, capF.where); roundCap(x, GZ0, -1, capB.ids, capB.where);
   COLL.push([x - .5, x + .5, GZ0 - .5, GZ1 + .5]);
 }
@@ -1187,9 +1240,20 @@ const ids = cat => P.filter(p => p.cat === cat).map(p => p.id);
 
 function buildRoom(){
   minimarketMaterials();
-  addG('floor', (() => { const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(-Math.PI / 2); g.translate(0, 0, (Z0 + Z1) / 2); return g; })());
-  addG('ceiling', (() => { const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(Math.PI / 2); g.translate(0, CEIL, (Z0 + Z1) / 2); return g; })());
-  const wall = (w, x, z, ry) => { const g = new THREE.PlaneGeometry(w, CEIL); g.rotateY(ry); g.translate(x, CEIL / 2, z); addG('wall', g); };
+  const rect = (x0, x1, z0, z1, y, key, down) => {
+    const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0); g.rotateX(down ? Math.PI / 2 : -Math.PI / 2); g.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
+    const uv = g.attributes.uv, pos = g.attributes.position;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (pos.getX(i) - X0) / (X1 - X0), (Z1 - pos.getZ(i)) / (Z1 - Z0));
+    addG(key, g);
+  };
+  const around = [[X0, X1, HOLE.z1, Z1], [HOLE.x1, X1, Z0, HOLE.z1], [X0, HOLE.x0, Z0, HOLE.z1]];
+  rect(X0, X1, Z0, Z1, 0, 'floor');
+  around.forEach(r => { rect(...r, CEIL, 'ceiling', true); rect(...r, H2, 'floor'); });
+  rect(X0, X1, Z0, Z1, CEIL2, 'ceiling', true);
+  // edges of the slab around the opening
+  addBox('wall', HOLE.x1 - HOLE.x0, H2 - CEIL, .02, (HOLE.x0 + HOLE.x1) / 2, (CEIL + H2) / 2, HOLE.z1);
+  addBox('wall', .02, H2 - CEIL, HOLE.z1 - HOLE.z0, HOLE.x1, (CEIL + H2) / 2, (HOLE.z0 + HOLE.z1) / 2);
+  const wall = (w, x, z, ry) => { const g = new THREE.PlaneGeometry(w, CEIL2); g.rotateY(ry); g.translate(x, CEIL2 / 2, z); addG('wall', g); };
   wall(X1 - X0, 0, Z0, 0); wall(Z1 - Z0, X0, (Z0 + Z1) / 2, Math.PI / 2); wall(Z1 - Z0, X1, (Z0 + Z1) / 2, -Math.PI / 2);
   addBox('kick', X1 - X0, .08, .02, 0, .04, Z0 + .01); addBox('kick', .02, .08, Z1 - Z0, X0 + .01, .04, (Z0 + Z1) / 2); addBox('kick', .02, .08, Z1 - Z0, X1 - .01, .04, (Z0 + Z1) / 2);
   // glass shop front with a sliding door on the right, bright street outside
@@ -1208,20 +1272,56 @@ function buildRoom(){
   }
   // shop name above the door, inside
   plane(textPlane(STORE.name, { w: 2.8, h: .5, color: '#FFFFFF', bg: '#0B7A4B', font: F_BRAND }), 2.8, .5, 2.5, 2.78, Z1 - .06, Math.PI);
+  // upper floor: solid front wall with two windows, its own ceiling lights
+  { const g = new THREE.PlaneGeometry(X1 - X0, CEIL2 - CEIL); g.rotateY(Math.PI); g.translate(0, (CEIL + CEIL2) / 2, Z1 - .01); addG('wall', g); }
+  [-3, 3].forEach(x => { addBox('dark', 1.6, 1.1, .06, x, H2 + 1.75, Z1 - .02); plane(MAT.street, 1.5, 1.0, x, H2 + 1.75, Z1 - .06, Math.PI); });
+  for (let x = -3.75; x <= 3.76; x += 2.5) for (let z = -11.5; z <= 3.6; z += 2.3){
+    addBox('led', .6, .02, .6, x, CEIL2 - .01, z);
+    const pg = new THREE.PlaneGeometry(1.4, 1.4); pg.rotateX(-Math.PI / 2); pg.translate(x, H2 + .005, z); addG('pool', pg);
+  }
+  buildStairs();
+}
+// granite stairs along the back wall, up to the second floor
+function rod(key, a, b, r){
+  const len = a.distanceTo(b), g = new THREE.CylinderGeometry(r, r, len, 8);
+  g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize())));
+  g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); addG(key, g);
+}
+function buildStairs(){
+  const { x0, run, steps, z, w } = STAIR, tread = run / steps, rise = H2 / steps;
+  for (let i = 0; i < steps; i++){
+    const top = (i + 1) * rise, xc = x0 - (i + .5) * tread;
+    addBox('granite', tread + .004, top, w, xc, top / 2, z);
+    addBox('steel', .025, .01, w, x0 - i * tread - .012, top + .004, z);
+  }
+  addBox('granite', .5, H2, w + .1, x0 - run - .25, H2 / 2, z);   // landing block at the top
+  // handrails on the open side and on the wall
+  const zo = z + w / 2 + .03, zw = Z0 + .06;
+  rod('steel', new THREE.Vector3(x0 + .1, .95, zo), new THREE.Vector3(x0 - run, H2 + .95, zo), .022);
+  rod('steel', new THREE.Vector3(x0, .9, zw), new THREE.Vector3(x0 - run, H2 + .9, zw), .02);
+  for (let i = 0; i <= steps; i += 3){ const x = x0 - i * tread, y = i * rise; rod('steel', new THREE.Vector3(x, y, zo), new THREE.Vector3(x, y + .95, zo), .015); }
+  // railing round the opening upstairs, open at the landing
+  const rl = (a, b) => { rod('steel', new THREE.Vector3(a[0], H2 + 1.0, a[1]), new THREE.Vector3(b[0], H2 + 1.0, b[1]), .025); rod('steel', new THREE.Vector3(a[0], H2 + .5, a[1]), new THREE.Vector3(b[0], H2 + .5, b[1]), .012); };
+  rl([HOLE.x0 + .4, HOLE.z1 + .03], [HOLE.x1 + .03, HOLE.z1 + .03]); rl([HOLE.x1 + .03, HOLE.z1 + .03], [HOLE.x1 + .03, HOLE.z0]);
+  for (let x = HOLE.x0 + .4; x <= HOLE.x1 + .04; x += .9) rod('steel', new THREE.Vector3(x, H2, HOLE.z1 + .03), new THREE.Vector3(x, H2 + 1.0, HOLE.z1 + .03), .02);
+  { const g = new THREE.PlaneGeometry(HOLE.x1 - HOLE.x0 - .4, .9); g.translate((HOLE.x0 + .4 + HOLE.x1) / 2, H2 + .5, HOLE.z1 + .035); addG('glass', g); }
+  plane(textPlane('الطابق الثاني', { w: 1.6, h: .32, color: '#FFFFFF', bg: PINK, sub: 'منظفات • مونة • أدوات منزلية' }), 1.6, .32, 1.1, 2.35, Z0 + .03, 0);
+  COLL.push([X0, x0, Z0, HOLE.z1 + .05]);   // under and beside the stairs, ground floor
 }
 function buildShelving(){
   const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2;
   shelfFace(new THREE.Vector3(X0 + .45, 0, zc), new THREE.Vector3(1, 0, 0), len, { list: ids('bakery'), cat: 'bakery', where: 'ممر 1، عالحيط الشمال', back: true, seed: 1 });
   COLL.push([X0, X0 + .5, GZ0 - .1, GZ1 + .1]);
-  gondolaMM(GX[0], [{ list: ids('snacks'), cat: 'snacks', where: 'ممر 1، عاليمين', seed: 0 }, { list: ids('pantry'), cat: 'pantry', where: 'ممر 2، عالشمال', seed: 1 }],
+  gondolaMM(GX[0], [{ list: ids('snacks'), cat: 'snacks', where: 'ممر 1، عاليمين', seed: 0 }, { list: ids('snacks'), where: 'ممر 2، عالشمال', seed: 1 }],
     { ids: ['tahini', 'nuts', 'choc'], where: 'الرف الدائري أول ممر 1' }, { ids: ['oil'], where: 'الرف الدائري آخر ممر 1' });
-  gondolaMM(GX[1], [{ list: ids('drinks'), cat: 'drinks', where: 'ممر 2، عاليمين', seed: 0 }, { list: ids('clean'), cat: 'clean', where: 'ممر 3، عالشمال', seed: 1 }],
+  gondolaMM(GX[1], [{ list: ids('drinks'), cat: 'drinks', where: 'ممر 2، عاليمين', seed: 0 }, { list: ids('bakery'), where: 'ممر 3، عالشمال', seed: 1 }],
     { ids: ['chips', 'popcorn'], where: 'الرف الدائري أول ممر 2' }, { ids: ['cola', 'energy'], where: 'الرف الدائري آخر ممر 2' });
-  gondolaMM(GX[2], [{ list: ids('care'), cat: 'care', where: 'ممر 3، عاليمين', seed: 0 }, { list: ids('snacks'), where: 'ممر 4، عالشمال', seed: 3 }],
-    { ids: ['tissue', 'soap'], where: 'الرف الدائري أول ممر 3' }, { ids: ['shampoo', 'dish'], where: 'الرف الدائري آخر ممر 3' });
+  gondolaMM(GX[2], [{ list: ids('snacks'), where: 'ممر 3، عاليمين', seed: 2 }, { list: ids('drinks'), where: 'ممر 4، عالشمال', seed: 3 }],
+    { ids: ['biscuit', 'choc'], where: 'الرف الدائري أول ممر 3' }, { ids: ['juice', 'water'], where: 'الرف الدائري آخر ممر 3' });
+  buildUpstairs();
   // back wall rack
-  shelfFace(new THREE.Vector3(.2, 0, Z0 + .45), new THREE.Vector3(0, 0, 1), 9.0, { list: ['rice', 'oil', 'hummus', 'foul', 'tuna', 'tahini', 'tea', 'coffee'], where: 'الرفوف اللي بآخر المحل', back: true, seed: 2 });
-  COLL.push([X0, X1, Z0, Z0 + .5]);
+  shelfFace(new THREE.Vector3(3.15, 0, Z0 + .45), new THREE.Vector3(0, 0, 1), 3.1, { list: ['water', 'juice', 'tea', 'coffee'], where: 'آخر المحل، جنب الدرج', back: true, seed: 2 });
+  COLL.push([1.6, X1, Z0, Z0 + .5]);
   CAT_SPOT.offers = null;
 }
 function buildFridges(){
@@ -1335,18 +1435,7 @@ function buildCheckouts(){
 // floor stock: tin tower, rice sacks, shrink-wrapped drink bundles, cardboard boxes
 function buildDisplays(){
   // round tower of tins and jars, turning slowly like the one in the shop
-  { const x = .7, z = 1.7, tower = new THREE.Group(); tower.position.set(x, 0, z); scene.add(tower);
-    const white = MAT.shelfWhite;
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(.42, .45, .12, 32), white); base.position.y = .06; tower.add(base);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.75, 10), white); pole.position.y = .9; tower.add(pole);
-    const T = [.12, .45, .78, 1.11, 1.44];
-    T.forEach(y => { if (y > .13){ const s = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .02, 32), white); s.position.y = y - .01; tower.add(s); }
-      const rim = new THREE.Mesh(new THREE.CylinderGeometry(.405, .405, .05, 32, 1, true), MAT.pink); rim.position.y = y - .02; tower.add(rim); });
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .03, 32), white); top.position.y = 1.77; tower.add(top);
-    const ring = ['tuna', 'hummus', 'tahini', 'foul', 'nuts'];
-    T.forEach((y, i) => { const p = byId[ring[i]], [w] = itemDims(p), n = Math.floor(Math.PI * 2 * .3 / (w + .012));
-      partsFor(p, 0).forEach(part => { const m = new THREE.InstancedMesh(part.g, part.m, n); for (let k = 0; k < n; k++){ const a = k / n * Math.PI * 2; m.setMatrixAt(k, M4(Math.sin(a) * .3, y, Math.cos(a) * .3, a)); } m.userData.pid = p.id; m.computeBoundingSphere(); tower.add(m); pickables.push(m); }); });
-    TOWER = tower; COLL.push([x - .5, x + .5, z - .5, z + .5]); aoStrip(x, z + .45, .9, .3, 0); }
+  TOWER = makeTower(.7, 1.7, 0, ['tuna', 'hummus', 'tahini', 'foul', 'nuts']);
   // rice sacks stacked on the floor at the back left
   { const sack = new THREE.BoxGeometry(.42, .14, .7, 4, 2, 4), pos = sack.attributes.position;
     for (let i = 0; i < pos.count; i++){ const x = pos.getX(i) / .21, z = pos.getZ(i) / .35; pos.setY(i, pos.getY(i) * Math.max(.35, 1 - x * x * .5 - z * z * .4)); }
@@ -1371,11 +1460,86 @@ function buildDisplays(){
     m.computeBoundingSphere(); scene.add(m); COLL.push([4.0, X1, -13.0, -11.5]); }
 }
 let TOWER = null;
+function makeTower(x, z, y0, ring){
+  const tower = new THREE.Group(); tower.position.set(x, y0, z); scene.add(tower);
+  const white = MAT.shelfWhite;
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(.42, .45, .12, 32), white); base.position.y = .06; tower.add(base);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.75, 10), white); pole.position.y = .9; tower.add(pole);
+  const T = [.12, .45, .78, 1.11, 1.44];
+  T.forEach(y => { if (y > .13){ const sh = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .02, 32), white); sh.position.y = y - .01; tower.add(sh); }
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(.405, .405, .05, 32, 1, true), MAT.pink); rim.position.y = y - .02; tower.add(rim); });
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .03, 32), white); top.position.y = 1.77; tower.add(top);
+  T.forEach((y, i) => { const p = byId[ring[i % ring.length]], [w] = itemDims(p), n = Math.floor(Math.PI * 2 * .3 / (w + .012));
+    partsFor(p, 0).forEach(part => { const m = new THREE.InstancedMesh(part.g, part.m, n); for (let k = 0; k < n; k++){ const a = k / n * Math.PI * 2; m.setMatrixAt(k, M4(Math.sin(a) * .3, y, Math.cos(a) * .3, a)); } m.userData.pid = p.id; m.computeBoundingSphere(); tower.add(m); pickables.push(m); }); });
+  COLL.push([x - .5, x + .5, z - .5, z + .5]);
+  withFrame(new THREE.Matrix4().makeTranslation(0, y0, 0), () => aoStrip(x, z + .45, .9, .3, 0));
+  return tower;
+}
+// white rice sacks with a printed brand band
+function sacks(x, z, y0, cols, layers, ry){
+  const sack = new THREE.BoxGeometry(.42, .14, .7, 4, 2, 4), pos = sack.attributes.position;
+  for (let i = 0; i < pos.count; i++){ const a = pos.getX(i) / .21, b = pos.getZ(i) / .35; pos.setY(i, pos.getY(i) * Math.max(.35, 1 - a * a * .5 - b * b * .4)); }
+  sack.computeVertexNormals();
+  const c = canvas(256, 128), cx = c.getContext('2d'); cx.fillStyle = '#F1EEE6'; cx.fillRect(0, 0, 256, 128); cx.fillStyle = '#E8A21A'; cx.beginPath(); cx.arc(70, 64, 34, 0, 7); cx.fill();
+  cx.fillStyle = '#C8102E'; cx.font = `italic 700 38px ${F_UI}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('Sunwhite', 150, 64);
+  const m = new THREE.InstancedMesh(sack, new THREE.MeshStandardMaterial({ map: tex(c), roughness: .85 }), cols * layers); let k = 0;
+  for (let l = 0; l < layers; l++) for (let i = 0; i < cols; i++) m.setMatrixAt(k++, M4(x + Math.cos(ry) * (i - (cols - 1) / 2) * .74 + (l % 2) * .05, y0 + .07 + l * .13, z - Math.sin(ry) * (i - (cols - 1) / 2) * .74 + (l % 2) * .03, ry + Math.PI / 2));
+  m.userData.pid = 'rice'; m.computeBoundingSphere(); scene.add(m); pickables.push(m);
+}
+function buildUpstairs(){
+  const c0 = COLL.length, prevY = BUILD_Y, prevSet = PHOTO_SET;
+  BUILD_Y = H2; PHOTO_SET = 'u';
+  const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2, W2 = 'الطابق الثاني • ';
+  withFrame(new THREE.Matrix4().makeTranslation(0, H2, 0), () => {
+    shelfFace(new THREE.Vector3(X0 + .45, H2, zc), new THREE.Vector3(1, 0, 0), len, { list: ids('clean'), cat: 'clean', where: W2 + 'ممر 1، عالحيط الشمال', back: true, seed: 3 });
+    COLL.push([X0, X0 + .5, GZ0 - .1, GZ1 + .1]);
+    gondolaMM(GX[0], [{ list: ids('pantry'), cat: 'pantry', where: W2 + 'ممر 1، عاليمين', seed: 0 }, { list: ids('pantry'), where: W2 + 'ممر 2، عالشمال', seed: 2 }],
+      { ids: ['oil', 'tahini'], where: W2 + 'الرف الدائري أول ممر 1' }, { ids: ['hummus', 'foul'], where: W2 + 'الرف الدائري آخر ممر 1' });
+    gondolaMM(GX[1], [{ list: ids('clean'), where: W2 + 'ممر 2، عاليمين', seed: 1 }, { list: ids('clean'), where: W2 + 'ممر 3، عالشمال', seed: 4 }],
+      { ids: ['dish', 'bleach', 'floor'], where: W2 + 'الرف الدائري أول ممر 2' }, { ids: ['laundry', 'tissue'], where: W2 + 'الرف الدائري آخر ممر 2' });
+    gondolaMM(GX[2], [{ list: ids('care'), cat: 'care', where: W2 + 'ممر 3، عاليمين', seed: 0 }, { list: ids('care'), where: W2 + 'ممر 4، عالشمال', seed: 2 }],
+      { ids: ['shampoo', 'soap'], where: W2 + 'الرف الدائري أول ممر 3' }, { ids: ['toothpaste', 'deo'], where: W2 + 'الرف الدائري آخر ممر 3' });
+    shelfFace(new THREE.Vector3(X1 - .45, H2, zc), new THREE.Vector3(-1, 0, 0), len, { list: ids('care'), where: W2 + 'ممر 4، عالحيط اليمين', back: true, seed: 5 });
+    COLL.push([X1 - .5, X1, GZ0 - .1, GZ1 + .1]);
+    shelfFace(new THREE.Vector3(3.15, H2, Z0 + .45), new THREE.Vector3(0, 0, 1), 3.1, { list: ['rice', 'oil', 'hummus', 'foul', 'tuna'], where: W2 + 'آخر المحل', back: true, seed: 1 });
+    COLL.push([1.6, X1, Z0, Z0 + .5]);
+    // gridwall of pans and kitchen tools on the front wall
+    const gx0 = -2.4, gx1 = 2.2, gz = Z1 - .05;
+    for (let x = gx0; x <= gx1 + .01; x += .1) addBox('steel', .006, 1.6, .006, x, 1.3, gz);
+    for (let y = .5; y <= 2.11; y += .1) addBox('steel', gx1 - gx0, .006, .006, (gx0 + gx1) / 2, y, gz);
+  });
+  // pans hanging on the gridwall
+  const panM = new THREE.MeshStandardMaterial({ color: '#2A2C2E', roughness: .35, metalness: .5 }), inM = new THREE.MeshStandardMaterial({ color: '#4A4D50', roughness: .6 });
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 7; k++){
+    const rad = .09 + ((r + k) % 3) * .025, x = -2.15 + k * .63, y = H2 + .85 + r * .48;
+    const pan = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad * .85, .05, 24), [panM, inM, panM]); pan.rotation.x = Math.PI / 2; pan.position.set(x, y, Z1 - .1); scene.add(pan);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(.03, .18, .02), panM); handle.position.set(x, y + rad + .08, Z1 - .09); scene.add(handle);
+  }
+  COLL.push([-2.5, 2.3, Z1 - .3, Z1]);
+  // round towers of detergents and cleaners in the front area
+  makeTower(-1.6, 1.4, H2, ['bleach', 'dish', 'floor', 'shampoo', 'dish']);
+  makeTower(1.9, 1.4, H2, ['floor', 'bleach', 'dish', 'bleach', 'shampoo']);
+  // plastic plants in white pots along the top of the gondolas, like upstairs in the shop
+  { const spots = []; GX.forEach(x => { for (let z = GZ0 + .4; z <= GZ1 - .3; z += 1.3) spots.push([x, z]); });
+    const potG = new THREE.CylinderGeometry(.11, .08, .16, 16), leafG = new THREE.SphereGeometry(1, 8, 6).scale(.05, .2, .02);
+    const pots = new THREE.InstancedMesh(potG, MAT.white, spots.length), leaves = new THREE.InstancedMesh(leafG, new THREE.MeshStandardMaterial({ color: '#3C7A36', roughness: .7 }), spots.length * 14);
+    let k = 0;
+    spots.forEach(([x, z], i) => {
+      pots.setMatrixAt(i, M4(x, H2 + G_TOP + .1, z));
+      for (let j = 0; j < 14; j++){ const a = rnd() * Math.PI * 2, t = .2 + rnd() * .8; leaves.setMatrixAt(k++, M4(x + Math.sin(a) * .07 * t, H2 + G_TOP + .2 + t * .2, z + Math.cos(a) * .07 * t, a, Math.cos(a) * (.3 + t * .6), Math.sin(a) * (.3 + t * .6))); }
+    });
+    scene.add(pots); scene.add(leaves); }
+  sacks(4.3, -12.3, H2, 2, 4, Math.PI / 2);
+  COLL.push([3.9, X1, -12.9, -11.6]);
+  COLL.push([HOLE.x0, HOLE.x1 + .08, Z0, HOLE.z1 + .08]);   // the stair opening
+  for (let i = c0; i < COLL.length; i++) COLL[i][4] = 1;
+  BUILD_Y = prevY; PHOTO_SET = prevSet;
+}
 function buildPosters(){
   placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#C8102E', title: 'عرض اليوم', sub: 'زيت زيتون بكر', items: ['oil'], priceOf: 'oil' }, 2.2, .58, [X0 + .03, 2.35, -3.4], Math.PI / 2);
   placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#E2307F', title: '٢ + ١ مجاناً', sub: 'على الشيبس والمشروبات', items: ['chips', 'cola', 'juice'], priceOf: 'chips' }, 2.2, .58, [X0 + .03, 2.35, -8.2], Math.PI / 2);
-  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#0B7A4B', title: 'توصيل مجاني', sub: `للطلبات فوق ${STORE.freeDelivery} ₪`, items: ['rice', 'water', 'laundry'] }, 2.4, .62, [-2.0, 2.35, Z0 + .03], 0);
-  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#1565C0', title: 'عروض الألبان', sub: 'طازجة كل صباح', items: ['milk', 'labneh', 'cheese'], priceOf: 'labneh' }, 2.4, .62, [2.4, 2.35, Z0 + .03], 0);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#0B7A4B', title: 'توصيل مجاني', sub: `للطلبات فوق ${STORE.freeDelivery} ₪`, items: ['rice', 'water', 'laundry'] }, 2.4, .62, [3.15, H2 + 2.35, Z0 + .03], 0);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#1565C0', title: 'عروض الألبان', sub: 'طازجة كل صباح', items: ['milk', 'labneh', 'cheese'], priceOf: 'labneh' }, 2.4, .62, [3.15, 2.35, Z0 + .03], 0);
 }
 
 /* ---------- instancing ---------- */
@@ -1461,19 +1625,19 @@ async function makeThumbs(){
 }
 
 /* ---------- walking, looking, path finding ---------- */
-const me = { pos: new THREE.Vector3(2.5, 0, 3.9), vel: new THREE.Vector3(), yaw: 0, pitch: -.06, tYaw: 0, tPitch: -.06, bob: 0 };
+const me = { pos: new THREE.Vector3(2.5, 0, 3.9), vel: new THREE.Vector3(), yaw: 0, pitch: -.06, tYaw: 0, tPitch: -.06, bob: 0, floor: 0, y: 0, climb: null };
 let path = null;      // { pts:[V3], i, speed, look:V3, then }
 const joy = { on: false, id: null, cx: 0, cy: 0, x: 0, y: 0 };
 const keys = {};
 const R_BODY = .28;
-function blockedStatic(x, z, r){
+function blockedStatic(x, z, r, fl = 0){
   if (x < X0 + r || x > X1 - r || z < Z0 + r || z > Z1 - r) return true;
-  for (const b of COLL) if (x > b[0] - r && x < b[1] + r && z > b[2] - r && z < b[3] + r) return true;
+  for (const b of COLL) if ((b[4] || 0) === fl && x > b[0] - r && x < b[1] + r && z > b[2] - r && z < b[3] + r) return true;
   return false;
 }
 function blocked(x, z){
-  if (blockedStatic(x, z, R_BODY)) return true;
-  for (const n of NPCS){ const d = Math.hypot(n.pos.x - x, n.pos.z - z), d0 = Math.hypot(n.pos.x - me.pos.x, n.pos.z - me.pos.z); if (d < .55 && d < d0) return true; }
+  if (blockedStatic(x, z, R_BODY, me.floor)) return true;
+  for (const n of NPCS.concat(STAFF.map(s => s.p))){ if (!n.pos || (n.floor || 0) !== me.floor) continue; const d = Math.hypot(n.pos.x - x, n.pos.z - z), d0 = Math.hypot(n.pos.x - me.pos.x, n.pos.z - me.pos.z); if (d < .55 && d < d0) return true; }
   return false;
 }
 function moveBy(dx, dz){
@@ -1510,13 +1674,22 @@ function plan(from, to){
   cands.sort((x, y) => len(x) - len(y));
   return cands[0].map(v => v.clone());
 }
-function safeSpot(v){
+function safeSpot(v, fl = me.floor){
   const p = v.clone(); p.y = 0;
-  for (let k = 0; k < 30 && blocked(p.x, p.z); k++){ p.x += (me.pos.x - p.x) * .12; p.z += (me.pos.z - p.z) * .12; }
+  const from = fl === me.floor ? me.pos : (fl ? STAIR.top : STAIR.bottom);
+  for (let k = 0; k < 30 && blockedStatic(p.x, p.z, R_BODY, fl); k++){ p.x += (from.x - p.x) * .12; p.z += (from.z - p.z) * .12; }
   return p;
 }
+// walking to another floor: go to the stairs, climb, then carry on upstairs (or down)
 function walkTo(target, look, speed, then){
-  const t = safeSpot(target);
+  const fl = target.fl ?? (target.y > H2 - .3 ? 1 : 0);
+  if (fl !== me.floor && !me.climb){
+    const entry = Object.assign((me.floor ? STAIR.top : STAIR.bottom).clone(), { fl: me.floor });
+    const dest = Object.assign(target.clone(), { fl });
+    walkTo(entry, null, speed, () => climb(fl, () => walkTo(dest, look, speed, then)));
+    return;
+  }
+  const t = safeSpot(target, fl);
   path = { pts: plan(me.pos, t), i: 0, speed: speed || 1.7, look: look ? look.clone() : null, then };
   if (!reduceMotion) return;
   me.pos.copy(t); finishPath();
@@ -1528,9 +1701,17 @@ function finishPath(){
 }
 const aim = (from, to) => { const dx = to.x - from.x, dz = to.z - from.z; return { yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(to.y - from.y, Math.hypot(dx, dz)) }; };
 const nearAngle = (cur, a) => { let d = a - cur; d = ((d + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return cur + d; };
+function climb(to, then){
+  const up = to === 1, yb = up ? 0 : H2, yt = up ? H2 : 0, xb = STAIR.x0, xt = STAIR.x0 - STAIR.run, z = STAIR.z;
+  const pts = up
+    ? [[STAIR.bottom.x, 0, z], [xb, 0, z], [xt, H2, z], [-4.75, H2, z], [STAIR.top.x, H2, STAIR.top.z]]
+    : [[STAIR.top.x, H2, STAIR.top.z], [-4.75, H2, z], [xt, H2, z], [xb, 0, z], [STAIR.bottom.x, 0, z], [1.2, 0, -12.4]];
+  me.climb = { pts: pts.map(p => new THREE.Vector3(...p)), i: 1, to, then };
+  path = null; me.vel.set(0, 0, 0);
+}
 function goToProduct(id, openAfter){
   const b = primaryBlock[id]; if (!b) return;
-  const stand = b.pos.clone().addScaledVector(b.normal, 1.45); stand.y = 0;
+  const stand = b.pos.clone().addScaledVector(b.normal, 1.45); stand.y = b.pos.y > H2 - .3 ? H2 : 0;
   walkTo(stand, b.pos, 2.6, () => { showHighlight(b); if (openAfter) setTimeout(() => openProduct(id), 350); });
 }
 function showHighlight(b){
@@ -1603,13 +1784,18 @@ function tapAt(cx, cy){
   const h = hits[0]; if (!h) return;
   if (h.object === floorMesh){
     if (h.distance > 26) return;
-    const t = safeSpot(h.point);
-    marker.position.set(t.x, .01, t.z); marker.userData.t = performance.now(); marker.visible = true;
+    const t = safeSpot(h.point, me.floor); t.fl = me.floor;
+    marker.position.set(t.x, me.y + .01, t.z); marker.userData.t = performance.now(); marker.visible = true;
     walkTo(t, null, 1.8);
     return;
   }
   if (h.distance > 9){ const t = h.point.clone(); walkTo(t, h.point, 2.2); return; }
-  const id = h.object.userData.pid;
+  let id = h.object.userData.pid;
+  if (h.object.userData.photo){
+    // a photographed shelf: open the product recorded nearest to where the finger landed
+    let bd = 1e9; for (const pid in blocks) for (const b of blocks[pid]){ const d = b.pos.distanceTo(h.point); if (d < bd){ bd = d; id = pid; } }
+    if (!id) return;
+  }
   let best = null, bd = 1e9; (blocks[id] || []).forEach(b => { const d = b.pos.distanceTo(h.point); if (d < bd){ bd = d; best = b; } });
   if (best && bd < 1.6) showHighlight(best);
   openProduct(id);
@@ -1750,13 +1936,13 @@ function makeCart(empty){
   if (!empty) for (let i = 0; i < 5; i++){ const p = items[Math.floor(rnd() * items.length)], pg = new THREE.Group(); partsFor(p, 0).forEach(pt => pg.add(new THREE.Mesh(pt.g, pt.m))); pg.position.set((rnd() - .5) * .3, .56, (rnd() - .5) * .55); pg.rotation.set(0, rnd() * 6, i % 2 ? Math.PI / 2 * .9 : 0); g.add(pg); }
   return g;
 }
-function randomSpot(){
+function randomSpot(fl = 0){
   for (let k = 0; k < 40; k++){
     const r = rnd(); let p;
     if (r < .66){ const i = Math.floor(rnd() * AISLE_X.length); p = new THREE.Vector3(AISLE_X[i] + (rnd() - .5) * .5, 0, GZ0 + .6 + rnd() * (GZ1 - GZ0 - 1.2)); }
     else if (r < .84) p = new THREE.Vector3(-1.8 + rnd() * 4.2, 0, -.5 + rnd() * 1.6);
     else p = new THREE.Vector3(-3.6 + rnd() * 7, 0, BACK_Z + (rnd() - .5) * .5);
-    if (!blockedStatic(p.x, p.z, .4)) return p;
+    if (!blockedStatic(p.x, p.z, .4, fl)) return p;
   }
   return new THREE.Vector3(1.0, 0, -5);
 }
@@ -1769,16 +1955,17 @@ function faceShelf(p){
 }
 
 /* shoppers */
-function spawnShopper(atDoor){
+function spawnShopper(atDoor, fl = 0){
   const pool = RIGS.chars.filter(c => !c.worker);
   const c = pool[Math.floor(rnd() * pool.length)];
   const p = makePerson(c);
   p.role = 'shopper'; p.browses = 2 + Math.floor(rnd() * 3);
   p.speed = (p.cartObj ? .8 : c.f ? 1.0 : 1.15) * (.9 + rnd() * .2);
-  p.pos.copy(atDoor ? new THREE.Vector3(-1.2 + rnd() * 2, 0, 5.1) : randomSpot());
+  p.floor = fl;
+  p.pos.copy(atDoor ? new THREE.Vector3(1.8 + rnd() * 1.4, 0, 4.7) : randomSpot(fl));
   p.g.position.copy(p.pos); p.g.rotation.y = atDoor ? Math.PI : rnd() * Math.PI * 2;
   NPCS.push(p);
-  if (atDoor) goTo(p, randomSpot()); else { p.timer = 1 + rnd() * 4; play(p, p.cartObj ? 'idle' : pick(['idle', 'look'])); }
+  if (atDoor) goTo(p, randomSpot(0)); else { p.timer = 1 + rnd() * 4; play(p, p.cartObj ? 'idle' : pick(['idle', 'look'])); }
   return p;
 }
 function goTo(p, target, then){ p.path = plan(p.pos, target); p.then = then || null; p.busy = false; }
@@ -1795,7 +1982,7 @@ function stepAgent(p, dt){
   let sx = dx / d, sz = dz / d, slow = 1;
   const others = NPCS.concat(STAFF.map(s => s.p));
   for (const o of others){
-    if (o === p || !o.pos) continue;
+    if (o === p || !o.pos || (o.floor || 0) !== (p.floor || 0)) continue;
     const bx = p.pos.x - o.pos.x, bz = p.pos.z - o.pos.z, bd = Math.hypot(bx, bz);
     if (bd > 1.1 || bd < 1e-3) continue;
     const w = (1.1 - bd) / bd * 1.4;
@@ -1803,7 +1990,7 @@ function stepAgent(p, dt){
     const ahead = -(bx * dx + bz * dz) / (bd * d);
     if (ahead > .7 && bd < .7) slow = Math.min(slow, o.path ? .55 : .25);
   }
-  { const bx = p.pos.x - me.pos.x, bz = p.pos.z - me.pos.z, bd = Math.hypot(bx, bz);
+  { const bx = p.pos.x - me.pos.x, bz = p.pos.z - me.pos.z, bd = (p.floor || 0) === me.floor ? Math.hypot(bx, bz) : 99;
     if (bd < 1.4 && bd > 1e-3){ const w = (1.4 - bd) / bd * 2; sx += bx * w; sz += bz * w; if (-(bx * dx + bz * dz) / (bd * d) > .5 && bd < 1) slow = Math.min(slow, .15); } }
   const sl = Math.hypot(sx, sz) || 1; sx /= sl; sz /= sl;
   const want = p.speed * slow * (p.path.length === 1 ? Math.min(1, d / .7 + .25) : 1);
@@ -1812,11 +1999,11 @@ function stepAgent(p, dt){
   for (const a of [0, .5, -.5, 1.0, -1.0, 1.5, -1.5]){
     const ca = Math.cos(a), sa = Math.sin(a), ux = sx * ca - sz * sa, uz = sx * sa + sz * ca;
     const nx = p.pos.x + ux * p.vel * dt, nz = p.pos.z + uz * p.vel * dt;
-    if (!blockedStatic(nx, nz, .22)){ p.pos.x = nx; p.pos.z = nz; if (a){ sx = ux; sz = uz; } break; }
+    if (!blockedStatic(nx, nz, .22, p.floor || 0)){ p.pos.x = nx; p.pos.z = nz; if (a){ sx = ux; sz = uz; } break; }
   }
   // stuck for a while: give up on this target and pick another
   p.stuck = p.vel < .08 ? (p.stuck || 0) + dt : 0;
-  if (p.stuck > 4 && p.role === 'shopper'){ p.stuck = 0; goTo(p, randomSpot()); }
+  if (p.stuck > 4 && p.role === 'shopper'){ p.stuck = 0; goTo(p, randomSpot(p.floor || 0)); }
   const yaw = nearAngle(p.g.rotation.y, Math.atan2(sx, sz));
   p.g.rotation.y += (yaw - p.g.rotation.y) * Math.min(1, dt * 5);
   return true;
@@ -1825,7 +2012,8 @@ function stepAgent(p, dt){
 function separate(){
   const all = NPCS;
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++){
-    const a = all[i], b = all[j], dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = .5;
+    const a = all[i], b = all[j]; if ((a.floor || 0) !== (b.floor || 0)) continue;
+    const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = .5;
     if (d >= min || d < 1e-4) continue;
     const push = (min - d) / 2, ux = dx / d, uz = dz / d;
     const aFix = a.inLine && !a.path, bFix = b.inLine && !b.path;
@@ -1842,7 +2030,7 @@ function arrive(p){
 }
 function joinQueue(p){
   const co = CHECKOUTS.slice().sort((a, b) => a.queue.length - b.queue.length)[0];
-  if (!co || co.queue.length >= 3){ p.browses = 1; goTo(p, randomSpot()); return; }
+  if (!co || co.queue.length >= 3){ p.browses = 1; goTo(p, randomSpot(0)); return; }
   p.role = 'queue'; p.co = co; p.slot = co.queue.length; co.queue.push(p);
   // walk to the back of the line first, then step up into the free spot
   const entry = co.slot(p.slot).add(new THREE.Vector3(.7, 0, -.5));
@@ -1862,8 +2050,8 @@ function updateShopper(p, dt){
   p.timer -= dt;
   if (p.afterAct && p.timer < 1.2){ p.afterAct = false; play(p, pick(['idle', 'look'])); }
   if (p.timer <= 0){
-    if (p.browses <= 0) joinQueue(p);
-    else goTo(p, randomSpot());
+    if (p.browses <= 0 && !p.floor) joinQueue(p);
+    else { if (p.floor) p.browses = 3; goTo(p, randomSpot(p.floor || 0)); }
   }
 }
 
@@ -1917,6 +2105,10 @@ function spawnStaff(){
   const pw = makePerson(RIGS.chars.find(c => c.f) || pool[0], { apron: true, height: 1.63 });
   pw.g.position.set(3.62, 0, 2.6); pw.g.rotation.y = Math.PI / 2; pw.pos.copy(pw.g.position);
   STAFF.push({ type: 'produce', p: pw, t: 0 }); play(pw, 'look');
+  // a shop assistant upstairs, tidying the kitchenware wall
+  const uw = makePerson(RIGS.chars.find(c => !c.f && !c.worker) || pool[0], { apron: true, height: 1.74 });
+  uw.floor = 1; uw.g.position.set(-3.95, H2, -5.2); uw.g.rotation.y = -Math.PI / 2; uw.pos.set(-3.95, 0, -5.2);
+  STAFF.push({ type: 'produce', p: uw, t: 2 }); play(uw, 'look');
 }
 function setItem(st){
   st.item.clear();
@@ -1964,7 +2156,7 @@ function updateStaff(dt){
       const moving = stepAgent(p, dt);
       if (moving){ const n = walkName(p); play(p, n, { speed: Math.max(.5, Math.min(1.3, p.vel / STRIDE[n])) }); }
       else if (p.face !== undefined){ p.face = nearAngle(p.g.rotation.y, p.face); p.g.rotation.y += (p.face - p.g.rotation.y) * Math.min(1, dt * 4); }
-      p.g.position.copy(p.pos);
+      p.g.position.set(p.pos.x, p.floor ? H2 : 0, p.pos.z);
     } else if (st.type === 'produce'){
       st.t -= dt;
       if (st.t <= 0){ const a = pick(['reach', 'pick_up', 'look', 'look']); play(p, a, { once: a !== 'look', fade: .4 }); st.t = a === 'look' ? 5 : 3.6; }
@@ -1975,7 +2167,8 @@ function spawnNPCs(){
   loadRigs().then(r => {
     RIGS = r;
     spawnStaff();
-    for (let i = 0; i < (coarse ? 6 : 8); i++) spawnShopper(false);
+    for (let i = 0; i < (coarse ? 5 : 7); i++) spawnShopper(false, 0);
+    for (let i = 0; i < (coarse ? 3 : 5); i++) spawnShopper(false, 1);
     if (AUD.ctx) AUD.refreshCarts && AUD.refreshCarts();
   }).catch(e => console.warn('people not loaded', e));
 }
@@ -1992,7 +2185,7 @@ function updateNPCs(dt){
     // far away people animate at a lower rate to save the phone's battery
     p.skip = d > 18 ? (p.skip || 0) + dt : 0;
     if (d <= 18) p.mixer.update(dt); else if (p.skip > .1){ p.mixer.update(p.skip); p.skip = 0; }
-    p.g.position.set(p.pos.x, 0, p.pos.z);
+    p.g.position.set(p.pos.x, p.floor ? H2 : 0, p.pos.z);
   }
 }
 
@@ -2077,7 +2270,18 @@ function loop(now){
   if (view !== 'store' || document.hidden) return;
   const fwdV = new THREE.Vector3(-Math.sin(me.yaw), 0, -Math.cos(me.yaw)), rightV = new THREE.Vector3(Math.cos(me.yaw), 0, -Math.sin(me.yaw));
   const want = new THREE.Vector3();
-  if (path){
+  if (me.climb){
+    // on the stairs: follow the steps at a calm pace
+    const c = me.climb, tgt = c.pts[c.i], cur = new THREE.Vector3(me.pos.x, me.y, me.pos.z), d = cur.distanceTo(tgt);
+    if (d < .05){ c.i++; if (c.i >= c.pts.length){ me.floor = c.to; me.y = c.to ? H2 : 0; me.climb = null; if (c.then) c.then(); } }
+    else {
+      const step = Math.min(d, (reduceMotion ? 20 : 1.25) * dt), dir = tgt.clone().sub(cur).normalize();
+      me.pos.x += dir.x * step; me.pos.z += dir.z * step; me.y += dir.y * step;
+      if (Math.hypot(dir.x, dir.z) > .3) me.tYaw = nearAngle(me.yaw, Math.atan2(-dir.x, -dir.z));
+      me.tPitch = dir.y > .2 ? .12 : dir.y < -.2 ? -.28 : -.06;
+      me.bob += dt * 1.25 * 5.6;
+    }
+  } else if (path){
     const tgt = path.pts[path.i];
     const d = Math.hypot(tgt.x - me.pos.x, tgt.z - me.pos.z);
     const last = path.i === path.pts.length - 1;
@@ -2104,13 +2308,18 @@ function loop(now){
     if (sp > .01){ want.addScaledVector(fwdV, f).addScaledVector(rightV, str).normalize().multiplyScalar(sp * (f < 0 ? .6 : 1)); }
   }
   me.vel.lerp(want, 1 - Math.exp(-dt * (want.lengthSq() > me.vel.lengthSq() ? 5 : 7)));
-  if (me.vel.lengthSq() > 1e-5){ const ok = moveBy(me.vel.x * dt, me.vel.z * dt); if (!ok && path){ path = null; } }
+  if (me.vel.lengthSq() > 1e-5 && !me.climb){ const ok = moveBy(me.vel.x * dt, me.vel.z * dt); if (!ok && path){ path = null; } }
+  // walking into the foot of the stairs (or onto the top landing) takes you up or down
+  if (!me.climb && !path){
+    if (me.floor === 0 && me.pos.x < 1.0 && me.pos.z < -12.95 && me.vel.x < -.15) climb(1);
+    else if (me.floor === 1 && me.pos.x < -4.35 && me.pos.z < -12.95 && me.vel.z < -.15) climb(0);
+  }
   me.yaw += (me.tYaw - me.yaw) * (1 - Math.exp(-dt * (path ? 6 : 12)));
   me.pitch += (me.tPitch - me.pitch) * (1 - Math.exp(-dt * 12));
   const speed = Math.hypot(me.vel.x, me.vel.z);
   if (!reduceMotion) me.bob += dt * speed * 5.6;
   const bobAmp = reduceMotion ? 0 : Math.min(1, speed / 1.6) * .014;
-  camera.position.set(me.pos.x, EYE + Math.sin(me.bob * 2) * bobAmp, me.pos.z);
+  camera.position.set(me.pos.x, me.y + EYE + Math.sin(me.bob * 2) * bobAmp, me.pos.z);
   camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob) * bobAmp * .25);
   updateNPCs(dt); updateStaff(dt); updateAudio(speed);
   if (TOWER) TOWER.rotation.y += dt * .12;
@@ -2150,9 +2359,9 @@ async function init3D(){
   // warm-neutral store lighting: dim ambient, light coming from the fixtures above each aisle
   scene.add(new THREE.HemisphereLight('#FFF6EA', '#8E8A82', coarse ? .8 : .38));
   const key = new THREE.DirectionalLight('#FFF4E4', .55); key.position.set(1, 10, 3); scene.add(key);
-  [[-3.8, -8], [-1.4, -8], [1.0, -8], [3.42, -8], [-2.6, -3], [1.0, -3], [-2.2, 2], [2.4, 2]].forEach(([x, z]) => {
+  [[-3.8, -8], [-1.4, -8], [1.0, -8], [3.42, -8], [-2.6, -3], [1.0, -3], [-2.2, 2], [2.4, 2], [-2.6, -8, 1], [1.0, -8, 1], [-1.4, -2, 1], [2.4, -2, 1]].forEach(([x, z, up]) => {
     if (coarse) return; // phones: skip the per-pixel lamps, the hemisphere light below fills in
-    const l = new THREE.PointLight('#FFF1DC', z > -3 ? 4 : 7, 9, 1.6); l.position.set(x, CEIL - .7, z); scene.add(l);
+    const l = new THREE.PointLight('#FFF1DC', z > -3 ? 4 : 7, 9, 1.6); l.position.set(x, (up ? CEIL2 : CEIL) - .7, z); scene.add(l);
   });
   progress(.1, 'بنرتّب الرفوف…'); await nextFrame();
   makeMaterials(); buildRoom();
