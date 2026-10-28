@@ -60,6 +60,8 @@ svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .chip{flex:none;border:0;background:rgba(255,255,255,.94);border-radius:999px;padding:8px 14px;font-weight:500;font-size:13.5px;box-shadow:0 1px 8px rgba(23,32,27,.08);white-space:nowrap}
 .chip.on{background:var(--ink);color:#fff}
 .chip.deal{background:var(--promo);font-weight:600}
+.chip.floor{background:#E2307F;color:#fff;font-weight:600;display:flex;align-items:center;gap:4px}
+.chip.floor svg{width:16px;height:16px}
 .deal-pill{align-self:flex-start;display:flex;align-items:center;gap:8px;border:0;background:rgba(255,255,255,.94);border-radius:12px;padding:6px 10px;font-size:12.5px;box-shadow:0 1px 8px rgba(23,32,27,.08);max-width:100%}
 .deal-pill .dp-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .deal-pill b{color:var(--sale)}
@@ -481,7 +483,19 @@ function toast(msg){
   t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2300);
 }
 function renderChips(){
-  $('#chips').innerHTML = `<button class="chip deal" data-cat="offers">العروض</button>` + CATS.map(c => `<button class="chip" data-cat="${c.id}">${c.name}</button>`).join('');
+  $('#chips').innerHTML = `<button class="chip floor" data-floor="1"></button><button class="chip deal" data-cat="offers">العروض</button>` + CATS.map(c => `<button class="chip" data-cat="${c.id}">${c.name}</button>`).join('');
+}
+const FLOOR_SPOT = [Object.assign(new THREE.Vector3(1.0, 0, 1.0), { fl: 0 }), Object.assign(new THREE.Vector3(-.2, 0, -.2), { fl: 1 })];
+function goFloor(fl){
+  if (fl === me.floor || me.climb) return;
+  toast(fl ? 'طالع عالطابق الثاني: منظفات، مونة، عناية شخصية وأدوات منزلية' : 'نازل عالطابق الأرضي');
+  walkTo(Object.assign(FLOOR_SPOT[fl].clone(), { fl }), null, 2.4);
+}
+let floorShown = -1;
+function updateFloorChip(){
+  if (floorShown === me.floor) return; floorShown = me.floor;
+  const c = document.querySelector('.chip.floor'); if (!c) return;
+  c.innerHTML = me.floor ? '<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>الطابق الأرضي' : '<svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>الطابق الثاني';
 }
 function markChip(id){ document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.cat === id)); }
 function refreshCart(){
@@ -714,6 +728,7 @@ document.addEventListener('click', e => {
     mem.set('bd2_cart', cart); refreshCart(); bump(); toast('رجّعنا طلبك الماضي للسلة'); return;
   }
   if (t.dataset.walk){ setView('store'); goCat(t.dataset.walk); return; }
+  if (t.dataset.floor !== undefined){ if (view !== 'store') setView('store'); goFloor(me.floor ? 0 : 1); return; }
   if (t.dataset.cat){ goCat(t.dataset.cat); return; }
 });
 document.addEventListener('submit', e => {
@@ -941,6 +956,7 @@ function flushStatic(){
     const mesh = new THREE.Mesh(merged, MAT[k]);
     if (k === 'glass') mesh.renderOrder = 5;
     if (k.startsWith('photo')){ mesh.userData.photo = true; pickables.push(mesh); }
+    if (k === 'granite'){ mesh.userData.stairs = true; pickables.push(mesh); }
     scene.add(mesh);
     if (k === 'floor') floorMesh = mesh;
   }
@@ -1790,6 +1806,7 @@ function tapAt(cx, cy){
     return;
   }
   if (h.distance > 9){ const t = h.point.clone(); walkTo(t, h.point, 2.2); return; }
+  if (h.object.userData.stairs){ goFloor(me.floor ? 0 : 1); return; }
   let id = h.object.userData.pid;
   if (h.object.userData.photo){
     // a photographed shelf: open the product recorded nearest to where the finger landed
@@ -2310,10 +2327,11 @@ function loop(now){
   me.vel.lerp(want, 1 - Math.exp(-dt * (want.lengthSq() > me.vel.lengthSq() ? 5 : 7)));
   if (me.vel.lengthSq() > 1e-5 && !me.climb){ const ok = moveBy(me.vel.x * dt, me.vel.z * dt); if (!ok && path){ path = null; } }
   // walking into the foot of the stairs (or onto the top landing) takes you up or down
-  if (!me.climb && !path){
-    if (me.floor === 0 && me.pos.x < 1.0 && me.pos.z < -12.95 && me.vel.x < -.15) climb(1);
-    else if (me.floor === 1 && me.pos.x < -4.35 && me.pos.z < -12.95 && me.vel.z < -.15) climb(0);
+  if (!me.climb && !path && want.lengthSq() > .04){
+    if (me.floor === 0 && me.pos.x < 1.75 && me.pos.z < -12.55 && want.x < -.25) climb(1);
+    else if (me.floor === 1 && me.pos.x < -4.2 && me.pos.z < -12.6 && want.z < -.25) climb(0);
   }
+  updateFloorChip();
   me.yaw += (me.tYaw - me.yaw) * (1 - Math.exp(-dt * (path ? 6 : 12)));
   me.pitch += (me.tPitch - me.pitch) * (1 - Math.exp(-dt * 12));
   const speed = Math.hypot(me.vel.x, me.vel.z);
