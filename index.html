@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="theme-color" content="#0B7A4B">
+<meta name="theme-color" content="#E2307F">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>سوبرماركت البيدر</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -52,6 +52,7 @@ svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .bt b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt small{display:block;font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt small u{text-decoration:none;color:var(--ink);font-weight:600}
+.demo-tag{background:#FDE7F0;color:#B0145C;border-radius:6px;padding:0 5px;font-weight:600;font-size:11px}
 .ibtn{width:44px;height:50px;flex:none;border:0;border-radius:16px;background:var(--surface);display:grid;place-items:center;box-shadow:0 2px 14px rgba(23,32,27,.10)}
 .ibtn[aria-pressed="true"]{background:var(--ink);color:#fff}
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -10px;padding:2px 10px 2px}
@@ -344,7 +345,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 /* ======================= STORE CONFIG ======================= */
 const STORE = {
-  name: 'سوبرماركت البيدر', short: 'البيدر',
+  name: 'مؤسسة حسون التجارية', short: 'حسون', demo: true,
   whatsapp: '970590000000', whatsappShow: '059-000-0000',
   freeDelivery: 150, deliveryFee: 15,
   coupon: { code: 'BAYDAR10', pct: 10, min: 60 },
@@ -604,7 +605,7 @@ function renderCart(){
       ${t.disc ? `<div class="good"><span>خصم الكود</span><span class="num">−${fmt(t.disc)}</span></div>` : ''}
       <div><span>التوصيل</span><span class="num ${t.delivery ? '' : 'good'}">${t.delivery ? fmt(t.delivery) : 'مجاني'}</span></div>
       <div class="tot"><span>الإجمالي</span><span class="num">${fmt(t.total)}</span></div>
-      <div style="font-size:12.5px;color:var(--ink-2);justify-content:flex-start;gap:6px;align-items:center">${ICON.star}<span>رح تجمع <b class="num">${Math.floor(t.total)}</b> نقطة بطاقة البيدر</span></div>
+      <div style="font-size:12.5px;color:var(--ink-2);justify-content:flex-start;gap:6px;align-items:center">${ICON.star}<span>رح تجمع <b class="num">${Math.floor(t.total)}</b> نقطة بطاقة ${STORE.short}</span></div>
     </div>
     <button class="btn btn-primary" data-step="checkout" style="margin-top:14px">كمّل الطلب</button>`;
 }
@@ -746,9 +747,10 @@ function goCat(id){
 
 /* ======================= 3D STORE ======================= */
 let gl = false, renderer, scene, camera, pmrem, envTex;
-const X0 = -7.5, X1 = 7.5, Z0 = -21, Z1 = 6, CEIL = 3.4, EYE = 1.62;
-const GZ0 = -16.5, GZ1 = -6.5;
-const AISLE_X = [-4.95, 0, 4.95], FRONT_Z = -4.6, BACK_Z = -18.4;
+const X0 = -5, X1 = 5, Z0 = -14, Z1 = 5, CEIL = 3.0, EYE = 1.62;
+const GZ0 = -10.6, GZ1 = -1.4;
+const AISLE_X = [-3.8, -1.4, 1.0, 3.42], FRONT_Z = .15, BACK_Z = -12.3;
+let FRAME = null; // optional transform applied to static geometry built in a local frame
 const COLL = [];
 const pickables = [];
 const blocks = {};
@@ -925,7 +927,7 @@ function catKey(c){ const k = 'cat_' + c; if (!MAT[k]) MAT[k] = new THREE.MeshSt
 
 /* ---------- static (merged) architecture ---------- */
 const STATIC = {};
-function addG(key, g){ (STATIC[key] ||= []).push(g); return g; }
+function addG(key, g){ if (FRAME) g.applyMatrix4(FRAME); (STATIC[key] ||= []).push(g); return g; }
 function addBox(key, w, h, d, x, y, z, ry){ const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); g.translate(x, y, z); return addG(key, g); }
 function addCyl(key, r, h, x, y, z){ const g = new THREE.CylinderGeometry(r, r, h, 8); g.translate(x, y, z); return addG(key, g); }
 function flushStatic(){
@@ -954,55 +956,6 @@ function textPlane(text, opts){
   return new THREE.MeshBasicMaterial({ map: tex(c), transparent: true, toneMapped: false, depthWrite: false });
 }
 
-function buildRoom(){
-  addG('floor', (() => { const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(-Math.PI / 2); g.translate(0, 0, (Z0 + Z1) / 2); return g; })());
-  addG('ceiling', (() => { const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(Math.PI / 2); g.translate(0, CEIL, (Z0 + Z1) / 2); return g; })());
-  const wall = (w, x, z, ry) => { const g = new THREE.PlaneGeometry(w, CEIL); g.rotateY(ry); g.translate(x, CEIL / 2, z); addG('wall', g); };
-  wall(X1 - X0, 0, Z0, 0); wall(Z1 - Z0, X0, (Z0 + Z1) / 2, Math.PI / 2); wall(Z1 - Z0, X1, (Z0 + Z1) / 2, -Math.PI / 2);
-  // skirting and green brand band
-  addBox('kick', X1 - X0, .1, .02, 0, .05, Z0 + .01); addBox('kick', .02, .1, Z1 - Z0, X0 + .01, .05, (Z0 + Z1) / 2); addBox('kick', .02, .1, Z1 - Z0, X1 - .01, .05, (Z0 + Z1) / 2);
-  // wide brand-green band along the top of the walls, with a thin yellow line under it
-  addBox('brand', X1 - X0, .42, .02, 0, 3.19, Z0 + .01); addBox('brand', .02, .42, Z1 - Z0, X0 + .01, 3.19, (Z0 + Z1) / 2); addBox('brand', .02, .42, Z1 - Z0, X1 - .01, 3.19, (Z0 + Z1) / 2);
-  addBox('yellow', X1 - X0, .04, .022, 0, 2.96, Z0 + .012); addBox('yellow', .022, .04, Z1 - Z0, X0 + .012, 2.96, (Z0 + Z1) / 2); addBox('yellow', .022, .04, Z1 - Z0, X1 - .012, 2.96, (Z0 + Z1) / 2);
-  // glass shop front with mullions and a bright street behind
-  plane(MAT.street, X1 - X0, CEIL, 0, CEIL / 2, Z1 + .6, Math.PI);
-  for (let x = X0; x <= X1 + .01; x += 1.5) addBox('dark', .06, CEIL, .08, x, CEIL / 2, Z1);
-  addBox('dark', X1 - X0, .1, .1, 0, 2.5, Z1); addBox('dark', X1 - X0, .06, .1, 0, .03, Z1);
-  addG('glass', (() => { const g = new THREE.PlaneGeometry(X1 - X0, CEIL); g.translate(0, CEIL / 2, Z1 - .02); return g; })());
-  addBox('mat', 3, .012, 1.6, 0, .006, Z1 - 1.1);
-  // ceiling lighting: long linear fixtures over aisles, panels over the front zone
-  AISLE_X.forEach(x => {
-    addBox('ledWarm', .12, .03, GZ1 - GZ0 + 1, x, CEIL - .5, (GZ0 + GZ1) / 2);
-    addBox('dark', .16, .06, GZ1 - GZ0 + 1, x, CEIL - .47, (GZ0 + GZ1) / 2);
-    for (let z = GZ0; z <= GZ1; z += 3.3) addCyl('wire', .004, .45, x, CEIL - .22, z);
-  });
-  addBox('ledWarm', X1 - X0 - 2, .03, .12, 0, CEIL - .5, BACK_Z); addBox('dark', X1 - X0 - 2, .06, .16, 0, CEIL - .47, BACK_Z);
-  for (let x = -6; x <= 6.01; x += 2.4) for (let z = -4.2; z <= 4.4; z += 2.4){
-    addBox('led', .58, .02, .58, x, CEIL - .3, z); addBox('dark', .64, .04, .64, x, CEIL - .28, z);
-    for (const s of [-1, 1]) addCyl('wire', .004, .28, x + s * .25, CEIL - .14, z);
-    const pg = new THREE.PlaneGeometry(1.6, 1.6); pg.rotateX(-Math.PI / 2); pg.translate(x, .005, z); addG('pool', pg);
-    const hg = new THREE.PlaneGeometry(1.1, 1.1); hg.rotateX(Math.PI / 2); hg.translate(x, CEIL - .32, z); addG('pool', hg);
-  }
-  // reflections of the long fixtures on the glossy floor, and their halo
-  AISLE_X.forEach(x => {
-    const g = new THREE.PlaneGeometry(.55, GZ1 - GZ0 + 1); g.rotateX(-Math.PI / 2); g.translate(x, .004, (GZ0 + GZ1) / 2); addG('streak', g);
-    const h = new THREE.PlaneGeometry(.7, GZ1 - GZ0 + 1.4); h.rotateX(Math.PI / 2); h.translate(x, CEIL - .53, (GZ0 + GZ1) / 2); addG('glowAdd', h);
-  });
-  { const g = new THREE.PlaneGeometry(X1 - X0 - 2, .55); g.rotateX(-Math.PI / 2); g.translate(0, .004, BACK_Z); addG('streak', g); }
-  // exposed ductwork and cable trays under the dark ceiling
-  [-3.6, 3.6].forEach(x => { const d = new THREE.CylinderGeometry(.22, .22, Z1 - Z0 - .4, 20, 1, true); d.rotateX(Math.PI / 2); d.translate(x, CEIL - .3, (Z0 + Z1) / 2); addG('duct', d);
-    for (let z = Z0 + 1; z < Z1; z += 1.6){ const r = new THREE.TorusGeometry(.222, .008, 6, 20); r.translate(x, CEIL - .3, z); addG('duct', r); } });
-  addBox('tray', .3, .05, Z1 - Z0 - .4, 0, CEIL - .12, (Z0 + Z1) / 2);
-  // department lettering on the walls
-  const word = (t, w, x, y, z, ry) => plane(textPlane(t, { w, h: .55, color: '#0B7A4B', font: F_BRAND }), w, .55, x, y, z, ry);
-  word('مخبوزات', 3.4, X0 + .02, 2.7, (GZ0 + GZ1) / 2, Math.PI / 2);
-  word('خضار وفواكه', 4, X0 + .02, 2.7, -.2, Math.PI / 2);
-  word('عناية شخصية', 4, X1 - .02, 2.7, (GZ0 + GZ1) / 2, -Math.PI / 2);
-  word('ألبان وأجبان', 4.4, 0, 2.7, Z0 + .02, 0);
-  const brandMat = textPlane(STORE.short, { w: 2.4, h: .8, color: '#FFFFFF', bg: '#0B7A4B', font: F_PUNCH, weight: 400, sub: 'طازج كل يوم' });
-  plane(brandMat, 2.4, .8, 5.6, 2.7, Z1 - .15, Math.PI);
-  COLL.push([X0, X1, Z1 - .35, Z1 + 1]);
-}
 
 /* ---------- product geometry ---------- */
 function stripUV(g, keep){
@@ -1099,51 +1052,6 @@ function crateGeos(cx, cy, cz, tilt, len, dep){
   const fill = new THREE.BoxGeometry(dep - .04, .06, len - .04); fill.translate(0, .06, 0); fill.applyMatrix4(m); addG('fill', fill);
   return m;
 }
-function buildProduce(){
-  const list = P.filter(p => p.cat === 'produce');
-  const zStart = -3.9, colW = 1.22, dep = .4, tilt = -.22;
-  const tiers = [[-6.56, .55], [-6.96, .78], [-7.3, 1.0]];
-  // stepped dark wood stand
-  tiers.forEach(([x, y]) => addBox('kick', dep, y, colW * list.length + .1, x, y / 2, zStart + colW * list.length / 2));
-  list.forEach((p, pi) => {
-    const kind = p.shape.split(':')[1], F = FRUIT[kind];
-    FRUIT_INST[p.id] ||= [];
-    const z0 = zStart + pi * colW;
-    tiers.forEach(([x, y], ti) => {
-      for (let c = 0; c < 2; c++){
-        const zc = z0 + .31 + c * .6;
-        const m = crateGeos(x, y, zc, tilt, .56, dep);
-        const step = kind === 'cucumber' ? [.045, .19] : kind === 'banana' ? [.16, .14] : kind === 'lemon' ? [.07, .09] : [.085, .088];
-        for (let a = -dep / 2 + .05; a <= dep / 2 - .04; a += step[0]) for (let b = -.25; b <= .25; b += step[1]){
-          for (let layer = 0; layer < (kind === 'banana' ? 1 : 2); layer++){
-            const lp = new THREE.Vector3(a + (rnd() - .5) * .012 + layer * step[0] * .5, .1 + layer * .04, b + (rnd() - .5) * .014 + layer * step[1] * .5);
-            if (layer && (Math.abs(lp.x) > dep / 2 - .05 || Math.abs(lp.z) > .25)) continue;
-            const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd() * .5, rnd() * Math.PI * 2, rnd() * .5));
-            if (kind === 'banana'){ for (let f = 0; f < 4; f++){ const fm = new THREE.Matrix4().compose(lp.clone().add(new THREE.Vector3(0, .02 + f * .006, (f - 1.5) * .022)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (f - 1.5) * .18 + (rnd() - .5) * .3, 0)), new THREE.Vector3(1, 1, 1)); FRUIT_INST[p.id].push({ m: m.clone().multiply(fm), t: rnd() }); } continue; }
-            const s = 1 + (rnd() - .5) * .16;
-            FRUIT_INST[p.id].push({ m: m.clone().multiply(new THREE.Matrix4().compose(lp, q, new THREE.Vector3(s, s, s))), t: rnd() });
-          }
-        }
-      }
-    });
-    // chalkboard price sign
-    const sc = canvas(300, 190), sx = sc.getContext('2d');
-    sx.fillStyle = '#5E3B1F'; sx.fillRect(0, 0, 300, 190); sx.fillStyle = '#23292A'; sx.fillRect(10, 10, 280, 170);
-    for (let k = 0; k < 400; k++){ sx.fillStyle = `rgba(255,255,255,${Math.random() * .04})`; sx.fillRect(10 + Math.random() * 280, 10 + Math.random() * 170, 2, 2); }
-    sx.fillStyle = '#F4F1E8'; sx.textAlign = 'center'; sx.textBaseline = 'middle'; sx.direction = 'rtl';
-    fit(sx, p.name, 600, 32, F_BRAND, 250); sx.fillText(p.name, 150, 52);
-    sx.direction = 'ltr'; sx.font = `700 64px ${F_UI}`; sx.fillStyle = p.old ? '#FFD84D' : '#F4F1E8'; sx.fillText(num(p.price) + ' ₪', 150, 115);
-    sx.font = `400 20px ${F_UI}`; sx.fillStyle = '#C9CCC4'; sx.direction = 'rtl'; sx.fillText(p.old ? `بدل ${num(p.old)} • للكيلو` : 'للكيلو', 150, 160);
-    const sign = plane(new THREE.MeshStandardMaterial({ map: tex(sc), roughness: .9 }), .3, .19, -6.3, .98, z0 + colW / 2, Math.PI / 2);
-    sign.rotation.set(0, Math.PI / 2, 0); sign.rotateX(-.15); sign.userData.pid = p.id; pickables.push(sign);
-    addCyl('dark', .006, .4, -6.31, .7, z0 + colW / 2);
-    const b = { pos: new THREE.Vector3(-6.6, .75, z0 + colW / 2), normal: new THREE.Vector3(1, 0, 0), h: .2, w: colW, shelf: -1, where: 'قسم الخضار والفواكه، عاليسار عند المدخل' };
-    (blocks[p.id] ||= []).push(b); primaryBlock[p.id] = b;
-  });
-  aoStrip(-6.3, zStart + colW * list.length / 2, colW * list.length + .2, .6, Math.PI / 2);
-  COLL.push([X0, -6.25, zStart - .1, zStart + colW * list.length + .1]);
-  CAT_SPOT.produce = { stand: new THREE.Vector3(-4.6, 0, -.4), look: new THREE.Vector3(-6.8, .8, -.4), where: 'قسم الخضار والفواكه' };
-}
 
 /* ---------- shelving ---------- */
 const INST = {};
@@ -1192,138 +1100,282 @@ function fillFace(f){
   });
 }
 const SHELF_NAMES5 = ['الرف السفلي', 'الرف الثاني', 'الرف الأوسط', 'الرف الرابع', 'الرف العلوي'];
-function gondola(x, sides){
-  const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2;
-  addBox('kick', 1.1, .12, len, x, .06, zc);
-  addBox('panel', .04, 2.0, len, x, 1.0, zc);
-  for (let z = GZ0; z <= GZ1 + .01; z += 1.0) addBox('metal', .05, 2.02, .04, x, 1.01, z);
-  addBox('metal', .08, .06, len, x, 2.03, zc);
-  const shelves = [.12, .5, .88, 1.26, 1.64];
-  sides.forEach(sd => {
-    const fx = x + sd.side * .55;
-    addBox(catKey(sd.cat), .02, .12, len, x + sd.side * .552, .06, zc);
-    shelves.forEach(y => { if (y > .13){ addBox('metal', .5, .022, len, x + sd.side * .3, y - .011, zc); } addBox(catKey(sd.cat), .012, .045, len, fx, y - .028, zc);
-      const sg = new THREE.PlaneGeometry(len, .22); sg.rotateY(sd.side * Math.PI / 2); sg.translate(x + sd.side * .025, y - .13, zc); addG('aoV', sg); });
-    { const tg = new THREE.PlaneGeometry(len, .3); tg.rotateY(sd.side * Math.PI / 2); tg.translate(x + sd.side * .025, 1.85, zc); addG('aoV', tg); }
-    fillFace({ o: new THREE.Vector3(fx, 0, GZ1), along: new THREE.Vector3(0, 0, -1), normal: new THREE.Vector3(sd.side, 0, 0), len, shelves, top: 2.0, depth: .5, list: P.filter(p => p.cat === sd.cat).map(p => p.id), seed: sd.seed, where: sd.where });
-    aoStrip(fx, zc, len, .55, sd.side > 0 ? Math.PI / 2 : -Math.PI / 2);
-    const hdr = textPlane(catById[sd.cat].name, { w: 1.8, h: .26, color: '#FFFFFF', bg: CAT_COLOR[sd.cat] });
-    plane(hdr, 1.8, .26, x + sd.side * .05, 2.2, GZ1 - 1.2, sd.side * Math.PI / 2);
-    plane(hdr, 1.8, .26, x + sd.side * .05, 2.2, GZ0 + 1.2, sd.side * Math.PI / 2);
-    CAT_SPOT[sd.cat] = { stand: new THREE.Vector3(fx + sd.side * 1.55, 0, -9.6), look: new THREE.Vector3(fx, 1.0, -11.3), where: sd.where.split('،')[0] + ' • ' + catById[sd.cat].name };
-  });
-  // end cap facing the front cross-aisle
-  const ex = GZ1 + .6;
-  addBox('kick', 1.1, .12, .6, x, .06, GZ1 + .3);
-  addBox('panel', 1.1, 2.0, .04, x, 1.0, GZ1 + .02);
-  const shelvesE = [.12, .55, .98, 1.41];
-  shelvesE.forEach(y => { if (y > .13) addBox('metal', 1.1, .022, .56, x, y - .011, GZ1 + .3); addBox('channel', 1.1, .042, .012, x, y - .028, ex); });
-  addBox('metal', .04, 2.0, .6, x - .55, 1.0, GZ1 + .3); addBox('metal', .04, 2.0, .6, x + .55, 1.0, GZ1 + .3);
-  return { ex, shelvesE };
+
+
+
+
+
+/* ======================= MINIMARKET LAYOUT (white gondolas, pink rails, wire fences — like the client's store) ======================= */
+const GX = [-2.6, -.2, 2.2];                 // gondola centres
+const SHELF_Y = [.1, .45, .8, 1.15, 1.5], G_TOP = 1.85, G_HALF = .45;
+const PINK = '#E2307F';
+function scaleU(g, k){ const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * k); }
+function withFrame(m, fn){ const prev = FRAME; FRAME = m; fn(); FRAME = prev; }
+function minimarketMaterials(){
+  const S = o => new THREE.MeshStandardMaterial(o);
+  MAT.shelfWhite = S({ color: '#F3F4F2', roughness: .45, metalness: .15 });
+  MAT.pink = S({ color: PINK, roughness: .4 });
+  const fc = canvas(128, 32), fx = fc.getContext('2d');
+  fx.fillStyle = '#FFFFFF'; fx.fillRect(0, 1, 128, 3); fx.fillRect(0, 27, 128, 3);
+  for (let x = 0; x < 128; x += 16) fx.fillRect(x, 1, 3, 29);
+  const ft = tex(fc); ft.wrapS = THREE.RepeatWrapping;
+  MAT.fence = S({ map: ft, alphaTest: .5, roughness: .35, metalness: .4, side: THREE.DoubleSide });
+  MAT.ceiling = S({ color: '#F7F7F5', roughness: .9, side: THREE.DoubleSide });
+  MAT.wall = S({ color: '#F2F1ED', roughness: .9 });
+  MAT.cabinet = S({ map: MAT.wood.map.clone(), color: '#8A5A36', roughness: .6 });
+  MAT.cabinet.map.repeat.set(1, 3); MAT.cabinet.map.needsUpdate = true;
+  MAT.cardboard = S({ color: '#B88A55', roughness: .95 });
+  MAT.sack = S({ color: '#F1EEE6', roughness: .85 });
+  MAT.film = S({ color: '#FFFFFF', roughness: .1, transparent: true, opacity: .18, depthWrite: false });
 }
-function wallRack(xFace, side, cat, wood, where){
-  const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2, xb = xFace - side * .55;
-  const mat = wood ? 'wood' : 'metal';
-  addBox('kick', .55, .12, len, xb + side * .275, .06, zc);
-  addBox(catKey(cat), .02, .12, len, xFace + side * .002, .06, zc);
-  addBox(wood ? 'wood' : 'panel', .03, 2.15, len, xb + side * .015, 1.07, zc);
-  const shelves = [.12, .5, .88, 1.26, 1.64];
-  shelves.forEach(y => { if (y > .13) addBox(mat, .52, wood ? .03 : .022, len, xb + side * .28, y - .012, zc); addBox(catKey(cat), .014, .045, len, xFace, y - .028, zc);
-    const sg = new THREE.PlaneGeometry(len, .22); sg.rotateY(side * Math.PI / 2); sg.translate(xb + side * .035, y - .13, zc); addG('aoV', sg); });
-  for (let z = GZ0; z <= GZ1 + .01; z += 1.25) addBox(wood ? 'wood' : 'metal', .52, 2.1, .03, xb + side * .27, 1.05, z);
-  fillFace({ o: new THREE.Vector3(xFace, 0, GZ1), along: new THREE.Vector3(0, 0, -1), normal: new THREE.Vector3(side, 0, 0), len, shelves, top: 2.05, depth: .5, list: P.filter(p => p.cat === cat).map(p => p.id), seed: 3, where });
-  aoStrip(xFace, zc, len, .55, side > 0 ? Math.PI / 2 : -Math.PI / 2);
-  COLL.push(side > 0 ? [X0, xFace, GZ0 - .1, GZ1 + .1] : [xFace, X1, GZ0 - .1, GZ1 + .1]);
-  CAT_SPOT[cat] = { stand: new THREE.Vector3(xFace + side * 1.55, 0, -9.6), look: new THREE.Vector3(xFace, 1.0, -11.3), where: where.split('،')[0] + ' • ' + catById[cat].name };
+// one shelf run: plinth, white shelves, pink price rail, white wire fence, products; c = centre of the front edge on the floor
+function shelfFace(c, normal, len, o){
+  const up = new THREE.Vector3(0, 1, 0), along = up.clone().cross(normal).normalize();
+  const D = o.depth || .42, M = new THREE.Matrix4().makeBasis(along, up, normal).setPosition(c);
+  withFrame(M, () => {
+    addBox('shelfWhite', len, .1, D, 0, .05, -D / 2);
+    addBox('pink', len, .1, .008, 0, .05, .004);
+    SHELF_Y.forEach((y, i) => {
+      if (i){ addBox('shelfWhite', len, .02, D, 0, y - .01, -D / 2); addBox('pink', len, .05, .008, 0, y - .025, .004);
+        const g = new THREE.PlaneGeometry(len, .075); scaleU(g, len / .24); g.translate(0, y + .04, .002); addG('fence', g); }
+      const sg = new THREE.PlaneGeometry(len, .22); sg.translate(0, y + (i ? -.13 : .25), -D + .006); addG('aoV', sg);
+    });
+    if (o.back) addBox('shelfWhite', len, G_TOP, .03, 0, G_TOP / 2, -D - .015);
+    for (let u = -len / 2; u <= len / 2 + .01; u += 1.0) addBox('shelfWhite', .03, G_TOP, .04, u, G_TOP / 2, -D + .02);
+    addBox('shelfWhite', len, .04, D, 0, G_TOP, -D / 2);
+  });
+  fillFace({ o: c.clone().addScaledVector(along, -len / 2), along, normal, len, shelves: SHELF_Y, top: G_TOP, depth: D - .02, list: o.list, seed: o.seed || 0, where: o.where });
+  aoStrip(c.x, c.z, len, .45, Math.atan2(normal.x, normal.z));
+  if (o.cat && !CAT_SPOT[o.cat]) CAT_SPOT[o.cat] = { stand: c.clone().addScaledVector(normal, .74), look: new THREE.Vector3(c.x, 1.0, c.z).addScaledVector(along, -.8), where: o.where.split('،')[0] + ' • ' + catById[o.cat].name };
+}
+// rounded end shelf on a gondola (dir 1 = front end, -1 = back end)
+function roundCap(x, z, dir, ids, where){
+  const r = .45, t0 = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+  const half = (rad, h, y, key, open) => { const g = new THREE.CylinderGeometry(rad, rad, h, 28, 1, open, t0, Math.PI); g.translate(x, y, z); return addG(key, g); };
+  half(r, .1, .05, 'shelfWhite'); half(r + .002, .1, .05, 'pink', true);
+  SHELF_Y.forEach((y, i) => {
+    if (!i) return;
+    half(r, .02, y - .01, 'shelfWhite'); half(r + .004, .05, y - .025, 'pink', true);
+    const f = new THREE.CylinderGeometry(r + .006, r + .006, .075, 28, 1, true, t0, Math.PI); scaleU(f, Math.PI * r / .24); f.translate(x, y + .04, z); addG('fence', f);
+  });
+  half(r, .04, G_TOP, 'shelfWhite');
+  addCyl('shelfWhite', .03, G_TOP, x, G_TOP / 2, z);
+  SHELF_Y.forEach((y, si) => {
+    const p = byId[ids[si % ids.length]], [w, h] = itemDims(p);
+    if (h > .32) return;
+    const arr = (INST[p.id + '|0'] ||= []);
+    [[.3, 0], [.15, .5]].forEach(([rr2, off]) => {
+      const n = Math.max(2, Math.floor(Math.PI * rr2 / (w + .012)));
+      for (let k = 0; k < n; k++){
+        const a = t0 + (k + .5 + off * 0) / n * Math.PI;
+        const st = h < .1 ? 2 : 1;
+        for (let s = 0; s < st; s++) arr.push({ pos: new THREE.Vector3(x + Math.sin(a) * rr2, y + s * (h + .003), z + Math.cos(a) * rr2), rot: a + (rnd() - .5) * .08 });
+      }
+    });
+    const b = { pos: new THREE.Vector3(x, y + .12, z + dir * .3), y, h, w: .6, normal: new THREE.Vector3(0, 0, dir), shelf: si, nShelves: 5, where };
+    (blocks[p.id] ||= []).push(b);
+  });
+}
+function gondolaMM(x, faces, capF, capB){
+  const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2;
+  addBox('shelfWhite', .06, G_TOP, len, x, G_TOP / 2, zc);
+  [-1, 1].forEach((s, k) => shelfFace(new THREE.Vector3(x + s * G_HALF, 0, zc), new THREE.Vector3(s, 0, 0), len, { ...faces[k], depth: G_HALF - .03 }));
+  roundCap(x, GZ1, 1, capF.ids, capF.where); roundCap(x, GZ0, -1, capB.ids, capB.where);
+  COLL.push([x - .5, x + .5, GZ0 - .5, GZ1 + .5]);
+}
+const ids = cat => P.filter(p => p.cat === cat).map(p => p.id);
+
+function buildRoom(){
+  minimarketMaterials();
+  addG('floor', (() => { const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(-Math.PI / 2); g.translate(0, 0, (Z0 + Z1) / 2); return g; })());
+  addG('ceiling', (() => { const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(Math.PI / 2); g.translate(0, CEIL, (Z0 + Z1) / 2); return g; })());
+  const wall = (w, x, z, ry) => { const g = new THREE.PlaneGeometry(w, CEIL); g.rotateY(ry); g.translate(x, CEIL / 2, z); addG('wall', g); };
+  wall(X1 - X0, 0, Z0, 0); wall(Z1 - Z0, X0, (Z0 + Z1) / 2, Math.PI / 2); wall(Z1 - Z0, X1, (Z0 + Z1) / 2, -Math.PI / 2);
+  addBox('kick', X1 - X0, .08, .02, 0, .04, Z0 + .01); addBox('kick', .02, .08, Z1 - Z0, X0 + .01, .04, (Z0 + Z1) / 2); addBox('kick', .02, .08, Z1 - Z0, X1 - .01, .04, (Z0 + Z1) / 2);
+  // glass shop front with a sliding door on the right, bright street outside
+  plane(MAT.street, X1 - X0 + 2, CEIL, 0, CEIL / 2, Z1 + .8, Math.PI);
+  for (let x = X0; x <= X1 + .01; x += 1.25) if (x < 1.4 || x > 3.6) addBox('dark', .05, CEIL, .07, x, CEIL / 2, Z1);
+  addBox('dark', .07, 2.25, .09, 1.5, 1.125, Z1); addBox('dark', .07, 2.25, .09, 3.5, 1.125, Z1); addBox('dark', 2.1, .1, .1, 2.5, 2.25, Z1);
+  addBox('steel', .03, .5, .04, 2.42, 1.05, Z1 - .05); addBox('steel', .03, .5, .04, 2.58, 1.05, Z1 - .05);
+  addBox('dark', X1 - X0, .08, .09, 0, 2.6, Z1); addBox('dark', X1 - X0, .05, .09, 0, .025, Z1);
+  addG('glass', (() => { const g = new THREE.PlaneGeometry(X1 - X0, CEIL); g.translate(0, CEIL / 2, Z1 - .02); return g; })());
+  addBox('mat', 1.8, .012, 1.0, 2.5, .006, Z1 - .6);
+  COLL.push([X0, 1.45, Z1 - .3, Z1 + 1]); COLL.push([3.55, X1, Z1 - .3, Z1 + 1]); COLL.push([1.45, 3.55, Z1 - .05, Z1 + 1]);
+  // flat LED panels in a white ceiling
+  for (let x = -3.75; x <= 3.76; x += 2.5) for (let z = -12.5; z <= 3.6; z += 2.3){
+    addBox('led', .6, .02, .6, x, CEIL - .01, z);
+    const pg = new THREE.PlaneGeometry(1.4, 1.4); pg.rotateX(-Math.PI / 2); pg.translate(x, .005, z); addG('pool', pg);
+  }
+  // shop name above the door, inside
+  plane(textPlane(STORE.name, { w: 2.8, h: .5, color: '#FFFFFF', bg: '#0B7A4B', font: F_BRAND }), 2.8, .5, 2.5, 2.78, Z1 - .06, Math.PI);
 }
 function buildShelving(){
-  wallRack(X0 + .55, 1, 'bakery', true, 'ممر 1، عالحيط الشمال');
-  const L = gondola(-2.4, [{ side: -1, cat: 'pantry', seed: 1, where: 'ممر 1، عاليمين' }, { side: 1, cat: 'snacks', seed: 2, where: 'ممر 2، عالشمال' }]);
-  const R = gondola(2.4, [{ side: -1, cat: 'drinks', seed: 0, where: 'ممر 2، عاليمين' }, { side: 1, cat: 'clean', seed: 1, where: 'ممر 3، عالشمال' }]);
-  wallRack(X1 - .55, -1, 'care', false, 'ممر 3، عالحيط اليمين');
-  [-2.4, 2.4].forEach(x => COLL.push([x - .62, x + .62, GZ0 - .1, GZ1 + .62]));
-  // end caps: deal of the day + drinks & snacks offers
-  fillFace({ o: new THREE.Vector3(-2.95, 0, L.ex), along: new THREE.Vector3(1, 0, 0), normal: new THREE.Vector3(0, 0, 1), len: 1.1, shelves: L.shelvesE, top: 1.9, depth: .55, list: ['oil'], endcap: true, where: 'ستاند عرض اليوم، أول ممر 2' });
-  fillFace({ o: new THREE.Vector3(1.85, 0, R.ex), along: new THREE.Vector3(1, 0, 0), normal: new THREE.Vector3(0, 0, 1), len: 1.1, shelves: R.shelvesE, top: 1.9, depth: .55, list: ['cola', 'chips'], endcap: true, where: 'ستاند العروض، أول ممر 3' });
-  const ec1 = textPlane('عرض اليوم', { w: 1.1, h: .34, color: '#FFFFFF', bg: '#C62828' });
-  plane(ec1, 1.1, .34, -2.4, 2.15, L.ex - .02);
-  const ec2 = textPlane('عروض الأسبوع', { w: 1.1, h: .34, color: '#1C1D1B', bg: '#FFE14D' });
-  plane(ec2, 1.1, .34, 2.4, 2.15, R.ex - .02);
-  aoStrip(-2.4, L.ex, 1.2, .5, 0); aoStrip(2.4, R.ex, 1.2, .5, 0);
-  // hanging aisle signs
-  const names = [['مخبوزات', 'معلبات ومونة'], ['سناكات', 'مشروبات'], ['منظفات', 'عناية شخصية']];
-  AISLE_X.forEach((x, i) => {
-    const c = canvas(480, 300), g = c.getContext('2d');
-    g.fillStyle = '#0B7A4B'; rr(g, 0, 0, 480, 300, 28); g.fill();
-    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(240, 78, 50, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#0B7A4B'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `700 60px ${F_UI}`; g.fillText(String(i + 1), 240, 82);
-    g.fillStyle = '#FFFFFF'; g.direction = 'rtl'; names[i].forEach((t, k) => { fit(g, t, 600, 40, F_UI, 440); g.fillText(t, 240, 176 + k * 54); });
-    const mat = new THREE.MeshBasicMaterial({ map: tex(c), toneMapped: false });
-    plane(mat, .96, .6, x, 2.62, GZ1 + .9, 0); plane(mat, .96, .6, x, 2.62, GZ1 + .89, Math.PI);
-    addCyl('wire', .004, .48, x - .4, 3.15, GZ1 + .9); addCyl('wire', .004, .48, x + .4, 3.15, GZ1 + .9);
-  });
+  const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2;
+  shelfFace(new THREE.Vector3(X0 + .45, 0, zc), new THREE.Vector3(1, 0, 0), len, { list: ids('bakery'), cat: 'bakery', where: 'ممر 1، عالحيط الشمال', back: true, seed: 1 });
+  COLL.push([X0, X0 + .5, GZ0 - .1, GZ1 + .1]);
+  gondolaMM(GX[0], [{ list: ids('snacks'), cat: 'snacks', where: 'ممر 1، عاليمين', seed: 0 }, { list: ids('pantry'), cat: 'pantry', where: 'ممر 2، عالشمال', seed: 1 }],
+    { ids: ['tahini', 'nuts', 'choc'], where: 'الرف الدائري أول ممر 1' }, { ids: ['oil'], where: 'الرف الدائري آخر ممر 1' });
+  gondolaMM(GX[1], [{ list: ids('drinks'), cat: 'drinks', where: 'ممر 2، عاليمين', seed: 0 }, { list: ids('clean'), cat: 'clean', where: 'ممر 3، عالشمال', seed: 1 }],
+    { ids: ['chips', 'popcorn'], where: 'الرف الدائري أول ممر 2' }, { ids: ['cola', 'energy'], where: 'الرف الدائري آخر ممر 2' });
+  gondolaMM(GX[2], [{ list: ids('care'), cat: 'care', where: 'ممر 3، عاليمين', seed: 0 }, { list: ids('snacks'), where: 'ممر 4، عالشمال', seed: 3 }],
+    { ids: ['tissue', 'soap'], where: 'الرف الدائري أول ممر 3' }, { ids: ['shampoo', 'dish'], where: 'الرف الدائري آخر ممر 3' });
+  // back wall rack
+  shelfFace(new THREE.Vector3(.2, 0, Z0 + .45), new THREE.Vector3(0, 0, 1), 9.0, { list: ['rice', 'oil', 'hummus', 'foul', 'tuna', 'tahini', 'tea', 'coffee'], where: 'الرفوف اللي بآخر المحل', back: true, seed: 2 });
+  COLL.push([X0, X1, Z0, Z0 + .5]);
   CAT_SPOT.offers = null;
 }
 function buildFridges(){
-  const z = Z0, front = Z0 + .85, len = X1 - X0 - .9, x0 = X0 + .45;
-  addBox('dark', len, 2.45, .05, 0, 1.225, z + .025);
-  addBox('dark', .05, 2.45, .85, x0, 1.225, z + .425); addBox('dark', .05, 2.45, .85, -x0, 1.225, z + .425);
-  addBox('fridgeIn', len - .04, 2.05, .02, 0, 1.15, z + .08);
-  addBox('fridgeIn', len - .04, .02, .8, 0, 2.16, z + .43);
-  addBox('kick', len, .14, .9, 0, .07, z + .45);
-  addBox('dark', len, .3, .9, 0, 2.3, z + .45);
-  const shelves = [.16, .55, .94, 1.33, 1.72];
-  shelves.forEach(y => { if (y > .17) addBox('steel', len - .04, .015, .62, 0, y - .008, z + .42); addBox(catKey('dairy'), len - .04, .04, .012, 0, y - .028, front - .06);
-    const sg = new THREE.PlaneGeometry(len - .04, .2); sg.translate(0, y - .12, z + .095); addG('aoV', sg); });
-  const doors = Math.round(len / .78), dw = len / doors;
-  for (let i = 0; i <= doors; i++){
-    const x = x0 + i * dw;
-    addBox('dark', .05, 2.05, .05, x, 1.16, front);
-    if (i < doors){
-      addBox('led', .018, 1.9, .01, x + .04, 1.14, front - .04);
-      addBox('steel', .02, .7, .03, x + dw - .08, 1.2, front + .04);
+  const len = GZ1 - GZ0, zc = (GZ0 + GZ1) / 2, n = new THREE.Vector3(-1, 0, 0);
+  const M = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0).cross(n), new THREE.Vector3(0, 1, 0), n).setPosition(X1 - .8, 0, zc);
+  const FY = [.16, .52, .88, 1.24, 1.6];
+  withFrame(M, () => {
+    addBox('dark', len, 2.3, .05, 0, 1.15, -.78);
+    addBox('dark', .05, 2.3, .8, -len / 2, 1.15, -.4); addBox('dark', .05, 2.3, .8, len / 2, 1.15, -.4);
+    addBox('fridgeIn', len - .04, 1.95, .02, 0, 1.1, -.74);
+    addBox('fridgeIn', len - .04, .02, .76, 0, 2.06, -.4);
+    addBox('kick', len, .14, .8, 0, .07, -.4);
+    addBox('dark', len, .26, .8, 0, 2.2, -.4);
+    FY.forEach(y => { if (y > .17) addBox('steel', len - .04, .015, .62, 0, y - .008, -.4); addBox('pink', len - .04, .04, .01, 0, y - .028, -.08);
+      const sg = new THREE.PlaneGeometry(len - .04, .2); sg.translate(0, y - .12, -.725); addG('aoV', sg); });
+    const doors = Math.round(len / .75), dw = len / doors;
+    for (let i = 0; i <= doors; i++){
+      const u = -len / 2 + i * dw;
+      addBox('dark', .05, 1.95, .05, u, 1.1, 0);
+      if (i < doors){ addBox('led', .018, 1.8, .01, u + .04, 1.08, -.04); addBox('steel', .02, .6, .03, u + dw - .08, 1.15, .04); }
     }
-  }
-  addBox('dark', len, .06, .05, 0, .16, front); addBox('dark', len, .06, .05, 0, 2.17, front);
-  addG('glass', (() => { const g = new THREE.PlaneGeometry(len, 2.0); g.translate(0, 1.16, front + .01); return g; })());
-  const hdr = textPlane('ثلاجة الألبان والأجبان', { w: 3.2, h: .22, color: '#FFFFFF' });
-  plane(hdr, 3.2, .22, 0, 2.3, front + .03);
-  fillFace({ o: new THREE.Vector3(x0 + .02, 0, front - .07), along: new THREE.Vector3(1, 0, 0), normal: new THREE.Vector3(0, 0, 1), len: len - .04, shelves, top: 2.05, depth: .62, list: P.filter(p => p.cat === 'dairy').map(p => p.id), seed: 0, where: 'ثلاجة الألبان، آخر المحل' });
-  aoStrip(0, front, len, .6, 0);
-  COLL.push([X0, X1, Z0, front + .06]);
-  CAT_SPOT.dairy = { stand: new THREE.Vector3(-1.2, 0, -18.3), look: new THREE.Vector3(-1.2, 1.0, front), where: 'ثلاجة الألبان، آخر المحل' };
-}
-function buildCheckouts(){
-  // 2.7 m apart: counter, a cashier booth, and a full lane between neighbours
-  [-2.2, 0.5, 3.2, 5.9].forEach((x, i) => {
-    const z0 = 1.3, len = 2.3, scanZ = z0 + 1.45;
-    addBox('dark', .8, .86, len, x, .43, z0 + len / 2);
-    addBox('white', .82, .03, len + .02, x, .875, z0 + len / 2);
-    addBox('belt', .5, .02, 1.25, x - .05, .9, z0 + .7);
-    addBox('steel', .52, .02, .02, x - .05, .91, z0 + .06); addBox('steel', .52, .02, .02, x - .05, .91, z0 + 1.33);
-    addBox('dark', .36, .03, .26, x - .05, .9, scanZ); addBox('glass', .3, .005, .2, x - .05, .917, scanZ);
-    addBox('dark', .2, .22, .06, x - .05, 1.0, scanZ + .14);
-    addBox('steel', .66, .02, .6, x - .05, .89, z0 + 2.0);
-    // register screen and card terminal facing the cashier and the customer
-    addBox('dark', .05, .06, .05, x + .28, .93, scanZ + .2); addBox('dark', .04, .22, .3, x + .28, 1.1, scanZ + .2);
-    addBox('led', .005, .18, .26, x + .259, 1.1, scanZ + .2);
-    addBox('dark', .1, .05, .15, x - .3, .93, scanZ + .45);
-    // the cashier's booth panel
-    addBox('dark', .04, 1.05, 1.2, x + 1.42, .525, scanZ);
-    addBox('brand', .02, .12, len, x + .41, .78, z0 + len / 2);
-    // lane number on a pole with a light on top
-    addCyl('steel', .022, 2.1, x + .42, 1.05, z0);
-    addBox('ledWarm', .14, .06, .14, x + .42, 2.13, z0);
-    const m = textPlane(String(i + 1), { w: .3, h: .3, color: '#FFFFFF', bg: '#0B7A4B' });
-    plane(m, .3, .3, x + .42, 1.9, z0 + .025, 0); plane(m, .3, .3, x + .42, 1.9, z0 - .025, Math.PI);
-    aoStrip(x, z0 + len / 2, len, .5, Math.PI / 2); aoStrip(x, z0 + len / 2, len, .5, -Math.PI / 2);
-    COLL.push([x - .45, x + .45, z0 - .1, z0 + len + .1]);
-    CHECKOUTS.push({ x, z0, scanZ, i });
+    addBox('dark', len, .06, .05, 0, .14, 0); addBox('dark', len, .06, .05, 0, 2.08, 0);
+    const g = new THREE.PlaneGeometry(len, 1.9); g.translate(0, 1.1, .01); addG('glass', g);
   });
-  { const m = textPlane('المحاسبة', { w: 2.2, h: .4, color: '#FFFFFF', bg: '#0B7A4B' }); plane(m, 2.2, .4, 1.85, 2.75, .9, 0); addCyl('wire', .004, .5, .95, 3.1, .9); addCyl('wire', .004, .5, 2.75, 3.1, .9); }
-  // stack of red shopping baskets by the door
-  for (let i = 0; i < 6; i++){ addBox('red', .45, .03, .3, -4.3, .03 + i * .06, 4.4); addBox('red', .42, .06, .02, -4.3, .06 + i * .06, 4.54); addBox('red', .42, .06, .02, -4.3, .06 + i * .06, 4.26); }
-  COLL.push([-4.6, -4.0, 4.2, 4.6]);
+  plane(textPlane('مشروبات باردة وألبان', { w: 3.2, h: .2, color: '#FFFFFF' }), 3.2, .2, X1 - .83, 2.2, zc, -Math.PI / 2);
+  fillFace({ o: new THREE.Vector3(X1 - .73, 0, GZ0 + .02), along: new THREE.Vector3(0, 0, 1), normal: n, len: len - .04, shelves: FY, top: 2.0, depth: .62,
+    list: ids('dairy').concat(['water', 'cola', 'juice', 'energy']), seed: 0, where: 'ممر 4، ثلاجات اليمين' });
+  aoStrip(X1 - .8, zc, len, .5, -Math.PI / 2);
+  COLL.push([X1 - .85, X1, GZ0 - .1, GZ1 + .1]);
+  CAT_SPOT.dairy = { stand: new THREE.Vector3(X1 - 1.55, 0, -6), look: new THREE.Vector3(X1 - .8, 1.0, -6.8), where: 'ممر 4 • ثلاجات اليمين' };
+}
+function buildProduce(){
+  const list = P.filter(p => p.cat === 'produce');
+  const zStart = .75, colW = .6, dep = .34, tilt = .22;
+  const tiers = [[4.2, .5], [4.52, .7], [4.82, .9]];
+  tiers.forEach(([x, y]) => addBox('kick', dep, y, colW * list.length + .06, x, y / 2, zStart + colW * list.length / 2));
+  list.forEach((p, pi) => {
+    const kind = p.shape.split(':')[1];
+    FRUIT_INST[p.id] ||= [];
+    const zc = zStart + pi * colW + colW / 2;
+    tiers.forEach(([x, y]) => {
+      const m = crateGeos(x, y, zc, tilt, .56, dep);
+      const step = kind === 'cucumber' ? [.045, .19] : kind === 'banana' ? [.16, .14] : kind === 'lemon' ? [.07, .09] : [.085, .088];
+      for (let a = -dep / 2 + .05; a <= dep / 2 - .04; a += step[0]) for (let b = -.25; b <= .25; b += step[1]){
+        for (let layer = 0; layer < (kind === 'banana' ? 1 : 2); layer++){
+          const lp = new THREE.Vector3(a + (rnd() - .5) * .012 + layer * step[0] * .5, .1 + layer * .04, b + (rnd() - .5) * .014 + layer * step[1] * .5);
+          if (layer && (Math.abs(lp.x) > dep / 2 - .05 || Math.abs(lp.z) > .25)) continue;
+          const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd() * .5, rnd() * Math.PI * 2, rnd() * .5));
+          if (kind === 'banana'){ for (let f = 0; f < 4; f++){ const fm = new THREE.Matrix4().compose(lp.clone().add(new THREE.Vector3(0, .02 + f * .006, (f - 1.5) * .022)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (f - 1.5) * .18 + (rnd() - .5) * .3, 0)), new THREE.Vector3(1, 1, 1)); FRUIT_INST[p.id].push({ m: m.clone().multiply(fm), t: rnd() }); } continue; }
+          const s = 1 + (rnd() - .5) * .16;
+          FRUIT_INST[p.id].push({ m: m.clone().multiply(new THREE.Matrix4().compose(lp, q, new THREE.Vector3(s, s, s))), t: rnd() });
+        }
+      }
+    });
+    const sc = canvas(300, 190), sx = sc.getContext('2d');
+    sx.fillStyle = '#5E3B1F'; sx.fillRect(0, 0, 300, 190); sx.fillStyle = '#23292A'; sx.fillRect(10, 10, 280, 170);
+    sx.fillStyle = '#F4F1E8'; sx.textAlign = 'center'; sx.textBaseline = 'middle'; sx.direction = 'rtl';
+    fit(sx, p.name, 600, 32, F_BRAND, 250); sx.fillText(p.name, 150, 52);
+    sx.direction = 'ltr'; sx.font = `700 64px ${F_UI}`; sx.fillStyle = p.old ? '#FFD84D' : '#F4F1E8'; sx.fillText(num(p.price) + ' ₪', 150, 115);
+    sx.font = `400 20px ${F_UI}`; sx.fillStyle = '#C9CCC4'; sx.direction = 'rtl'; sx.fillText(p.old ? `بدل ${num(p.old)} • للكيلو` : 'للكيلو', 150, 160);
+    const sign = plane(new THREE.MeshStandardMaterial({ map: tex(sc), roughness: .9 }), .26, .165, 3.98, .93, zc, -Math.PI / 2);
+    sign.rotateX(-.15); sign.userData.pid = p.id; pickables.push(sign);
+    const b = { pos: new THREE.Vector3(4.3, .7, zc), normal: new THREE.Vector3(-1, 0, 0), h: .2, w: colW, shelf: -1, where: 'الخضرة، يمين الباب' };
+    (blocks[p.id] ||= []).push(b); primaryBlock[p.id] = b;
+  });
+  aoStrip(4.0, zStart + colW * list.length / 2, colW * list.length, .4, -Math.PI / 2);
+  COLL.push([3.95, X1, zStart - .05, zStart + colW * list.length + .05]);
+  CAT_SPOT.produce = { stand: new THREE.Vector3(3.0, 0, 2.5), look: new THREE.Vector3(4.6, .8, 2.5), where: 'الخضرة، يمين الباب' };
+}
+// the cashier's desk by the door with the wooden cabinet behind it
+function buildCheckouts(){
+  const dx = -3.35, z0 = .95, z1 = 2.85, zc = (z0 + z1) / 2;
+  addBox('shelfWhite', .7, .88, z1 - z0, dx, .44, zc);
+  addBox('dark', .76, .03, z1 - z0 + .06, dx, .895, zc);
+  addBox('pink', .012, .06, z1 - z0, dx + .356, .84, zc);
+  // framed picture on the customer side of the desk
+  { const c = canvas(400, 300), x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 300); g.addColorStop(0, '#9CC7E3'); g.addColorStop(.55, '#E8E2C8'); g.addColorStop(1, '#7E9B5A'); x.fillStyle = g; x.fillRect(0, 0, 400, 300);
+    x.fillStyle = '#5E7F3C'; for (let i = 0; i < 9; i++){ x.beginPath(); x.arc(30 + i * 45, 205 + (i % 3) * 8, 26, 0, Math.PI * 2); x.fill(); } x.fillStyle = '#D6C49A'; x.fillRect(0, 240, 400, 60);
+    const pm = new THREE.MeshStandardMaterial({ map: tex(c), roughness: .5 });
+    addBox('cabinet', .02, .5, .66, dx + .36, .5, zc); plane(pm, .58, .42, dx + .372, .5, zc, Math.PI / 2); }
+  addBox('dark', .05, .06, .05, dx - .2, .94, zc + .5); addBox('dark', .3, .22, .03, dx - .2, 1.08, zc + .5, Math.PI / 2 - .3);
+  addBox('led', .26, .18, .005, dx - .19, 1.08, zc + .5, Math.PI / 2 - .3);
+  addBox('dark', .2, .03, .2, dx + .1, .925, zc - .3); addBox('glass', .16, .005, .16, dx + .1, .945, zc - .3);
+  addBox('dark', .12, .04, .16, dx + .2, .93, zc + .2);
+  COLL.push([dx - .4, dx + .4, z0 - .05, z1 + .05]);
+  // wooden cabinet of small personal-care items on the wall behind the cashier
+  { const len = 2.8, c = new THREE.Vector3(X0 + .42, 0, 2.0), nrm = new THREE.Vector3(1, 0, 0), along = new THREE.Vector3(0, 1, 0).cross(nrm);
+    const M = new THREE.Matrix4().makeBasis(along, new THREE.Vector3(0, 1, 0), nrm).setPosition(c), CY = [.15, .5, .85, 1.2, 1.55, 1.9];
+    withFrame(M, () => {
+      addBox('cabinet', len, 2.25, .03, 0, 1.125, -.4);
+      addBox('cabinet', .04, 2.25, .42, -len / 2, 1.125, -.2); addBox('cabinet', .04, 2.25, .42, len / 2, 1.125, -.2); addBox('cabinet', .04, 2.25, .42, 0, 1.125, -.2);
+      CY.forEach(y => addBox('cabinet', len, .025, .4, 0, y - .012, -.2));
+      addBox('cabinet', len, .05, .42, 0, 2.25, -.2); addBox('cabinet', len, .15, .42, 0, .075, -.2);
+    });
+    fillFace({ o: c.clone().addScaledVector(along, -len / 2), along, normal: nrm, len, shelves: CY, top: 2.2, depth: .36, list: ['toothpaste', 'soap', 'razor', 'deo', 'gum'], seed: 0, where: 'خزانة الخشب ورا الكاشير' });
+    COLL.push([X0, X0 + .5, .55, 3.45]); }
+  // gridwall of hanging small items on the front wall
+  { const gx0 = -4.7, gx1 = -2.9, gz = Z1 - .04;
+    for (let x = gx0; x <= gx1 + .01; x += .1) addBox('steel', .006, 1.7, .006, x, 1.25, gz);
+    for (let y = .4; y <= 2.11; y += .1) addBox('steel', gx1 - gx0, .006, .006, (gx0 + gx1) / 2, y, gz);
+    const list = [];
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++){ const x = gx0 + .18 + k * .28, y = .8 + r * .36; addBox('steel', .004, .004, .14, x, y + .1, gz - .07); list.push(M4(x, y - .09, gz - .06, Math.PI)); }
+    instancedItems('razor', list.slice(0, 12)); instancedItems('gum', list.slice(12)); }
+  // stack of red baskets left of the door
+  for (let i = 0; i < 6; i++){ addBox('red', .45, .03, .3, .9, .03 + i * .06, 4.45); addBox('red', .42, .06, .02, .9, .06 + i * .06, 4.59); addBox('red', .42, .06, .02, .9, .06 + i * .06, 4.31); }
+  COLL.push([.6, 1.2, 4.25, 4.65]);
+  CHECKOUTS.push({ i: 0, slot: k => new THREE.Vector3(-2.52, 0, 1.95 - k * 1.0), frontYaw: -Math.PI / 2, lineYaw: 0,
+    cashier: new THREE.Vector3(-4.12, 0, 1.9), cashierYaw: Math.PI / 2, itemA: new THREE.Vector3(-3.06, .93, 2.35), itemB: new THREE.Vector3(-3.45, .93, 1.45),
+    exit: [new THREE.Vector3(-.6, 0, 2.9), new THREE.Vector3(2.5, 0, 4.7)] });
+}
+// floor stock: tin tower, rice sacks, shrink-wrapped drink bundles, cardboard boxes
+function buildDisplays(){
+  // round tower of tins and jars, turning slowly like the one in the shop
+  { const x = .7, z = 1.7, tower = new THREE.Group(); tower.position.set(x, 0, z); scene.add(tower);
+    const white = MAT.shelfWhite;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.42, .45, .12, 32), white); base.position.y = .06; tower.add(base);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.75, 10), white); pole.position.y = .9; tower.add(pole);
+    const T = [.12, .45, .78, 1.11, 1.44];
+    T.forEach(y => { if (y > .13){ const s = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .02, 32), white); s.position.y = y - .01; tower.add(s); }
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(.405, .405, .05, 32, 1, true), MAT.pink); rim.position.y = y - .02; tower.add(rim); });
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .03, 32), white); top.position.y = 1.77; tower.add(top);
+    const ring = ['tuna', 'hummus', 'tahini', 'foul', 'nuts'];
+    T.forEach((y, i) => { const p = byId[ring[i]], [w] = itemDims(p), n = Math.floor(Math.PI * 2 * .3 / (w + .012));
+      partsFor(p, 0).forEach(part => { const m = new THREE.InstancedMesh(part.g, part.m, n); for (let k = 0; k < n; k++){ const a = k / n * Math.PI * 2; m.setMatrixAt(k, M4(Math.sin(a) * .3, y, Math.cos(a) * .3, a)); } m.userData.pid = p.id; m.computeBoundingSphere(); tower.add(m); pickables.push(m); }); });
+    TOWER = tower; COLL.push([x - .5, x + .5, z - .5, z + .5]); aoStrip(x, z + .45, .9, .3, 0); }
+  // rice sacks stacked on the floor at the back left
+  { const sack = new THREE.BoxGeometry(.42, .14, .7, 4, 2, 4), pos = sack.attributes.position;
+    for (let i = 0; i < pos.count; i++){ const x = pos.getX(i) / .21, z = pos.getZ(i) / .35; pos.setY(i, pos.getY(i) * Math.max(.35, 1 - x * x * .5 - z * z * .4)); }
+    sack.computeVertexNormals();
+    const c = canvas(256, 128), cx = c.getContext('2d'); cx.fillStyle = '#F1EEE6'; cx.fillRect(0, 0, 256, 128); cx.fillStyle = '#C8102E'; cx.fillRect(0, 34, 256, 60); cx.fillStyle = '#FFF'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.font = `44px ${F_PUNCH}`; cx.direction = 'rtl'; cx.fillText('رز سنابل', 128, 66);
+    const sm = new THREE.MeshStandardMaterial({ map: tex(c), roughness: .85 });
+    const m = new THREE.InstancedMesh(sack, sm, 12); let k = 0;
+    for (let l = 0; l < 4; l++) for (let i = 0; i < 2; i++){ m.setMatrixAt(k++, M4(-.55 + i * .72 + (l % 2) * .06, .07 + l * .13, -11.45 + (l % 2) * .03, Math.PI / 2)); }
+    m.count = k;
+    m.userData.pid = 'rice'; m.computeBoundingSphere(); scene.add(m); pickables.push(m);
+    COLL.push([-.95, .55, -11.7, -11.15]); }
+  // shrink-wrapped six-packs of drinks on a low pallet left of the door
+  { pallet(-1.5, 4.25, 1.0, .8);
+    const list = []; for (let i = 0; i < 9; i++) for (let j = 0; j < 7; j++) for (let l = 0; l < 2; l++) list.push(M4(-1.92 + i * .1, .14 + l * .34, 3.97 + j * .093, (i + j) % 5));
+    instancedItems('cola', list.slice(0, 63)); instancedItems('water', list.slice(63));
+    const film = new THREE.Mesh(new THREE.BoxGeometry(.94, .68, .7), MAT.film); film.position.set(-1.52, .48, 4.25); scene.add(film);
+    stakeSign('cola', -.9, 4.25, Math.PI / 2, 1.0);
+    COLL.push([-2.05, -.95, 3.8, 4.7]); }
+  // cardboard boxes of stock in the back right corner
+  { const bx = new THREE.BoxGeometry(.5, .38, .4); const m = new THREE.InstancedMesh(bx, MAT.cardboard, 9); let k = 0;
+    for (let l = 0; l < 3; l++) for (let i = 0; i < 3; i++) m.setMatrixAt(k++, M4(4.35 - (i % 2) * .06, .19 + l * .385, -12.6 + i * .45, (rnd() - .5) * .15));
+    m.computeBoundingSphere(); scene.add(m); COLL.push([4.0, X1, -13.0, -11.5]); }
+}
+let TOWER = null;
+function buildPosters(){
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#C8102E', title: 'عرض اليوم', sub: 'زيت زيتون بكر', items: ['oil'], priceOf: 'oil' }, 2.2, .58, [X0 + .03, 2.35, -3.4], Math.PI / 2);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#E2307F', title: '٢ + ١ مجاناً', sub: 'على الشيبس والمشروبات', items: ['chips', 'cola', 'juice'], priceOf: 'chips' }, 2.2, .58, [X0 + .03, 2.35, -8.2], Math.PI / 2);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#0B7A4B', title: 'توصيل مجاني', sub: `للطلبات فوق ${STORE.freeDelivery} ₪`, items: ['rice', 'water', 'laundry'] }, 2.4, .62, [-2.0, 2.35, Z0 + .03], 0);
+  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#1565C0', title: 'عروض الألبان', sub: 'طازجة كل صباح', items: ['milk', 'labneh', 'cheese'], priceOf: 'labneh' }, 2.4, .62, [2.4, 2.35, Z0 + .03], 0);
 }
 
 /* ---------- instancing ---------- */
@@ -1409,7 +1461,7 @@ async function makeThumbs(){
 }
 
 /* ---------- walking, looking, path finding ---------- */
-const me = { pos: new THREE.Vector3(-1.6, 0, -2.4), vel: new THREE.Vector3(), yaw: 0, pitch: -.06, tYaw: 0, tPitch: -.06, bob: 0 };
+const me = { pos: new THREE.Vector3(2.5, 0, 3.9), vel: new THREE.Vector3(), yaw: 0, pitch: -.06, tYaw: 0, tPitch: -.06, bob: 0 };
 let path = null;      // { pts:[V3], i, speed, look:V3, then }
 const joy = { on: false, id: null, cx: 0, cy: 0, x: 0, y: 0 };
 const keys = {};
@@ -1431,8 +1483,8 @@ function moveBy(dx, dz){
   return moved;
 }
 function zoneOf(p){
-  if (p.z > GZ1 + .7) return { t: 'front' };
-  if (p.z < GZ0 - .2) return { t: 'back' };
+  if (p.z > GZ1 + .55) return { t: 'front' };
+  if (p.z < GZ0 - .5) return { t: 'back' };
   let bi = 0; AISLE_X.forEach((x, i) => { if (Math.abs(p.x - x) < Math.abs(p.x - AISLE_X[bi])) bi = i; });
   return { t: 'aisle', i: bi };
 }
@@ -1442,7 +1494,7 @@ function plan(from, to){
   const same = a.t === b.t && (a.t !== 'aisle' || a.i === b.i);
   if (same) return [to.clone()];
   const cands = [];
-  const idx = [0, 1, 2];
+  const idx = AISLE_X.map((_, i) => i);
   if (a.t === 'front'){
     if (b.t === 'aisle') cands.push([F(b.i), to]);
     if (b.t === 'back') idx.forEach(j => cands.push([F(j), B(j), to]));
@@ -1701,12 +1753,12 @@ function makeCart(empty){
 function randomSpot(){
   for (let k = 0; k < 40; k++){
     const r = rnd(); let p;
-    if (r < .62){ const i = Math.floor(rnd() * 3); p = new THREE.Vector3(AISLE_X[i] + (rnd() - .5) * 1.3, 0, -15.6 + rnd() * 8.6); }
-    else if (r < .8) p = new THREE.Vector3(-4.6 + rnd() * 3.4, 0, -4.4 + rnd() * 4.6);
-    else p = new THREE.Vector3(-5.5 + rnd() * 11, 0, BACK_Z + (rnd() - .5) * .6);
-    if (!blockedStatic(p.x, p.z, .45)) return p;
+    if (r < .66){ const i = Math.floor(rnd() * AISLE_X.length); p = new THREE.Vector3(AISLE_X[i] + (rnd() - .5) * .5, 0, GZ0 + .6 + rnd() * (GZ1 - GZ0 - 1.2)); }
+    else if (r < .84) p = new THREE.Vector3(-1.8 + rnd() * 4.2, 0, -.5 + rnd() * 1.6);
+    else p = new THREE.Vector3(-3.6 + rnd() * 7, 0, BACK_Z + (rnd() - .5) * .5);
+    if (!blockedStatic(p.x, p.z, .4)) return p;
   }
-  return new THREE.Vector3(0, 0, -10);
+  return new THREE.Vector3(1.0, 0, -5);
 }
 function faceShelf(p){
   const z = zoneOf(p.pos);
@@ -1793,10 +1845,9 @@ function joinQueue(p){
   if (!co || co.queue.length >= 3){ p.browses = 1; goTo(p, randomSpot()); return; }
   p.role = 'queue'; p.co = co; p.slot = co.queue.length; co.queue.push(p);
   // walk to the back of the line first, then step up into the free spot
-  const entry = slotPos(co, p.slot); entry.z -= 1.3;
-  goTo(p, entry, q => goTo(q, slotPos(co, q.slot), r => { r.inLine = true; r.face = r.slot === 0 ? Math.PI / 2 : 0; play(r, pick(['idle', 'look'])); }));
+  const entry = co.slot(p.slot).add(new THREE.Vector3(.7, 0, -.5));
+  goTo(p, entry, q => goTo(q, co.slot(q.slot), r => { r.inLine = true; r.face = r.slot === 0 ? co.frontYaw : co.lineYaw; play(r, pick(['idle', 'look'])); }));
 }
-function slotPos(co, k){ return new THREE.Vector3(co.x - .8, 0, co.z0 + .75 - k * 1.15); }
 function despawn(p){
   const i = NPCS.indexOf(p); if (i >= 0) NPCS.splice(i, 1);
   scene.remove(p.g); p.mixer.stopAllAction();
@@ -1824,26 +1875,27 @@ function spawnStaff(){
     co.queue = []; co.state = 'idle'; co.items = 0; co.t = 0;
     const c = pool[(i * 2 + 1) % pool.length];
     const cs = makePerson(c, { apron: true, height: c.f ? 1.64 : 1.75 });
-    cs.g.position.set(co.x + 1.02, 0, co.scanZ - .05); cs.g.rotation.y = -Math.PI / 2;
+    cs.g.position.copy(co.cashier); cs.g.rotation.y = co.cashierYaw;
     cs.pos.copy(cs.g.position);
     play(cs, 'typing');
     // put the stool exactly under the seated pelvis, at the height the pose sits at
     cs.mixer.update(.05); cs.g.updateMatrixWorld(true);
-    const hips = boneOf(cs, 'Hips'), hp = hips ? hips.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(co.x + 1.1, .62, co.scanZ);
+    const hips = boneOf(cs, 'Hips'), hp = hips ? hips.getWorldPosition(new THREE.Vector3()) : co.cashier.clone().setY(.6);
     const seatY = Math.max(.4, hp.y - .1);
-    const stool = new THREE.Group();
-    const seat = new THREE.Mesh(new THREE.CylinderGeometry(.19, .19, .05, 20), MAT.dark); seat.position.y = seatY - .025; stool.add(seat);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, seatY - .05, 10), MAT.steel); leg.position.y = (seatY - .05) / 2; stool.add(leg);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(.2, .22, .03, 20), MAT.steel); base.position.y = .015; stool.add(base);
-    stool.position.set(hp.x + .04, 0, hp.z); scene.add(stool);
+    // wooden chair with a backrest, under the seated pelvis
+    const chair = new THREE.Group(), wood = MAT.cabinet;
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(.42, .04, .42), wood); seat.position.y = seatY - .02; chair.add(seat);
+    [[-.18, -.18], [.18, -.18], [-.18, .18], [.18, .18]].forEach(([a, b]) => { const l = new THREE.Mesh(new THREE.BoxGeometry(.035, seatY - .04, .035), wood); l.position.set(a, (seatY - .04) / 2, b); chair.add(l); });
+    const back = new THREE.Mesh(new THREE.BoxGeometry(.42, .45, .03), wood); back.position.set(0, seatY + .26, -.2); chair.add(back);
+    chair.position.set(hp.x, 0, hp.z); chair.rotation.y = co.cashierYaw; scene.add(chair);
     const item = new THREE.Group(); scene.add(item); item.visible = false;
     STAFF.push({ type: 'cashier', p: cs, co, item, sellable, t: 0, dur: 1.4, beeped: false });
-    COLL.push([co.x + .45, co.x + 1.45, co.scanZ - .45, co.scanZ + .4]);
+    COLL.push([X0 + .5, -3.75, 1.2, 2.6]);
     // customers already waiting when the visitor arrives
-    const n = i % 2 ? 1 : 2;
+    const n = 2;
     for (let k = 0; k < n; k++){
       const q = spawnShopper(false); q.role = 'queue'; q.co = co; q.slot = k; co.queue.push(q); q.inLine = true;
-      q.pos.copy(slotPos(co, k)); q.g.position.copy(q.pos); q.g.rotation.y = q.face = k === 0 ? Math.PI / 2 : 0; q.path = null;
+      q.pos.copy(co.slot(k)); q.g.position.copy(q.pos); q.g.rotation.y = q.face = k === 0 ? co.frontYaw : co.lineYaw; q.path = null;
       play(q, pick(['idle', 'look']));
     }
   });
@@ -1851,19 +1903,19 @@ function spawnStaff(){
   const wk = RIGS.chars.find(c => c.worker) || pool[0];
   const st = makePerson(wk, { height: 1.78 });
   const box = new THREE.Mesh(new THREE.BoxGeometry(.42, .26, .3), smat('#B88A55', .9)); box.visible = false; st.g.add(box);
-  const trolley = new THREE.Group(); trolley.position.set(-.45, 0, -12.9);
+  const trolley = new THREE.Group(); trolley.position.set(-1.25, 0, -6.6);
   const tb = new THREE.Mesh(new THREE.BoxGeometry(.55, .03, .9), MAT.dark); tb.position.y = .25; trolley.add(tb);
   const th = new THREE.Mesh(new THREE.BoxGeometry(.55, .9, .03), MAT.steel); th.position.set(0, .7, -.45); trolley.add(th);
   const cardboard = smat('#B88A55', .9);
   for (let k = 0; k < 5; k++){ const bx = new THREE.Mesh(new THREE.BoxGeometry(.4, .25, .3), cardboard); bx.position.set(k % 2 ? .04 : -.04, .4 + Math.floor(k / 2) * .26, k % 2 ? .2 : -.2); bx.rotation.y = (rnd() - .5) * .2; trolley.add(bx); }
   [[.22, .35], [-.22, .35], [.22, -.35], [-.22, -.35]].forEach(([x, z]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, .03, 12), MAT.kick); w.rotation.z = Math.PI / 2; w.position.set(x, .05, z); trolley.add(w); });
-  scene.add(trolley); COLL.push([-1.6, -.15, -13.4, -11.5]);
-  st.pos.set(-.98, 0, -12.9); st.g.position.copy(st.pos); st.g.rotation.y = Math.PI / 2;
-  STAFF.push({ type: 'stocker', p: st, box, step: 0, t: 0, A: new THREE.Vector3(-.98, 0, -12.9), B: new THREE.Vector3(-1.32, 0, -11.95) });
+  scene.add(trolley); COLL.push([-1.55, -.95, -7.1, -6.1]);
+  st.pos.set(-1.45, 0, -5.8); st.g.position.copy(st.pos); st.g.rotation.y = Math.PI;
+  STAFF.push({ type: 'stocker', p: st, box, step: 0, t: 0, A: new THREE.Vector3(-1.45, 0, -5.8), B: new THREE.Vector3(-1.7, 0, -4.8), faceA: Math.PI, faceB: -Math.PI / 2 });
   play(st, 'pick_up', { once: true });
   // produce assistant tidying the crates
   const pw = makePerson(RIGS.chars.find(c => c.f) || pool[0], { apron: true, height: 1.63 });
-  pw.g.position.set(-5.75, 0, 2.6); pw.g.rotation.y = -Math.PI / 2; pw.pos.copy(pw.g.position);
+  pw.g.position.set(3.62, 0, 2.6); pw.g.rotation.y = Math.PI / 2; pw.pos.copy(pw.g.position);
   STAFF.push({ type: 'produce', p: pw, t: 0 }); play(pw, 'look');
 }
 function setItem(st){
@@ -1884,8 +1936,8 @@ function updateCheckout(co, dt){
     if (co.t <= 0){
       co.state = 'idle'; co.queue.shift();
       front.role = 'leaving'; front.inLine = false; if (front.cartObj) front.cartObj.position.set(0, 0, .6);
-      goTo(front, new THREE.Vector3(co.x - .8, 0, co.z0 + 3.0), q => goTo(q, new THREE.Vector3(-1 + rnd() * 2, 0, 5.3), despawn));
-      co.queue.forEach((q, k) => { q.slot = k; q.inLine = false; goTo(q, slotPos(co, k), r => { r.inLine = true; r.face = r.slot === 0 ? Math.PI / 2 : 0; play(r, 'idle'); }); });
+      goTo(front, co.exit[0], q => goTo(q, co.exit[1], despawn));
+      co.queue.forEach((q, k) => { q.slot = k; q.inLine = false; goTo(q, co.slot(k), r => { r.inLine = true; r.face = r.slot === 0 ? co.frontYaw : co.lineYaw; play(r, 'idle'); }); });
     }
   }
 }
@@ -1899,7 +1951,7 @@ function updateStaff(dt){
       if (co.state !== 'scan'){ st.item.visible = false; continue; }
       if (!st.item.visible){ setItem(st); st.item.visible = true; st.t = 0; st.beeped = false; st.dur = 1.3 + rnd() * .9; }
       st.t += dt; const k = Math.min(1, st.t / st.dur);
-      st.item.position.set(co.x - .05, .92 + Math.sin(k * Math.PI) * .12, co.z0 + .9 + k * 1.05);
+      st.item.position.lerpVectors(co.itemA, co.itemB, k); st.item.position.y += Math.sin(k * Math.PI) * .12;
       if (!st.beeped && k > .5){ st.beeped = true; beep(st.item.position, rnd() < .2); }
       if (st.t > st.dur + .35){
         co.items--; st.item.visible = false;
@@ -1907,8 +1959,8 @@ function updateStaff(dt){
       }
     } else if (st.type === 'stocker'){
       st.t += dt;
-      if (st.step === 0){ if (st.t > 1.7) st.box.visible = true, st.box.position.set(0, 1.0, .34); if (st.t > 3.3){ st.step = 1; st.t = 0; p.carrying = true; p.speed = .9; goTo(p, st.B, () => { st.step = 2; st.t = 0; p.face = -Math.PI / 2; play(p, 'put_down', { once: true, fade: .3 }); }); } }
-      else if (st.step === 2){ if (st.t > 2.4) st.box.visible = false; if (st.t > 4.6){ st.step = 3; st.t = 0; p.carrying = false; goTo(p, st.A, () => { st.step = 0; st.t = 0; p.face = Math.PI / 2; play(p, 'pick_up', { once: true, fade: .3 }); }); } }
+      if (st.step === 0){ if (st.t > 1.7) st.box.visible = true, st.box.position.set(0, 1.0, .34); if (st.t > 3.3){ st.step = 1; st.t = 0; p.carrying = true; p.speed = .9; goTo(p, st.B, () => { st.step = 2; st.t = 0; p.face = st.faceB; play(p, 'put_down', { once: true, fade: .3 }); }); } }
+      else if (st.step === 2){ if (st.t > 2.4) st.box.visible = false; if (st.t > 4.6){ st.step = 3; st.t = 0; p.carrying = false; goTo(p, st.A, () => { st.step = 0; st.t = 0; p.face = st.faceA; play(p, 'pick_up', { once: true, fade: .3 }); }); } }
       const moving = stepAgent(p, dt);
       if (moving){ const n = walkName(p); play(p, n, { speed: Math.max(.5, Math.min(1.3, p.vel / STRIDE[n])) }); }
       else if (p.face !== undefined){ p.face = nearAngle(p.g.rotation.y, p.face); p.g.rotation.y += (p.face - p.g.rotation.y) * Math.min(1, dt * 4); }
@@ -1923,7 +1975,7 @@ function spawnNPCs(){
   loadRigs().then(r => {
     RIGS = r;
     spawnStaff();
-    for (let i = 0; i < (coarse ? 8 : 12); i++) spawnShopper(false);
+    for (let i = 0; i < (coarse ? 6 : 8); i++) spawnShopper(false);
     if (AUD.ctx) AUD.refreshCarts && AUD.refreshCarts();
   }).catch(e => console.warn('people not loaded', e));
 }
@@ -2061,6 +2113,7 @@ function loop(now){
   camera.position.set(me.pos.x, EYE + Math.sin(me.bob * 2) * bobAmp, me.pos.z);
   camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob) * bobAmp * .25);
   updateNPCs(dt); updateStaff(dt); updateAudio(speed);
+  if (TOWER) TOWER.rotation.y += dt * .12;
   if (highlight.visible){ const left = hlUntil - now; if (left <= 0) highlight.visible = false; else highlight.material.opacity = .55 + .35 * Math.sin(now / 180); }
   if (marker.visible){ const a = (now - marker.userData.t) / 900; if (a > 1 && !path) marker.visible = false; else { const s = 1 + (a % 1) * .6; marker.scale.set(s, s, s); marker.material.opacity = .8 * (1 - (a % 1)); } }
   renderer.render(scene, camera);
@@ -2097,7 +2150,7 @@ async function init3D(){
   // warm-neutral store lighting: dim ambient, light coming from the fixtures above each aisle
   scene.add(new THREE.HemisphereLight('#FFF6EA', '#8E8A82', coarse ? .8 : .38));
   const key = new THREE.DirectionalLight('#FFF4E4', .55); key.position.set(1, 10, 3); scene.add(key);
-  [[-4.95, -14], [0, -14], [4.95, -14], [-4.95, -8.5], [0, -8.5], [4.95, -8.5], [-3, -2], [3, -2]].forEach(([x, z]) => {
+  [[-3.8, -8], [-1.4, -8], [1.0, -8], [3.42, -8], [-2.6, -3], [1.0, -3], [-2.2, 2], [2.4, 2]].forEach(([x, z]) => {
     if (coarse) return; // phones: skip the per-pixel lamps, the hemisphere light below fills in
     const l = new THREE.PointLight('#FFF1DC', z > -3 ? 4 : 7, 9, 1.6); l.position.set(x, CEIL - .7, z); scene.add(l);
   });
@@ -2118,7 +2171,7 @@ async function init3D(){
   spawnNPCs();
   bindControls(cv);
   resize(); addEventListener('resize', resize);
-  me.yaw = me.tYaw = -.12;
+  me.yaw = me.tYaw = .12;
   progress(.85, 'جاهزين تقريباً…'); await nextFrame();
   renderer.compile(scene, camera);
   requestAnimationFrame(loop);
@@ -2128,6 +2181,8 @@ let coachShown = false;
 function hideCoach(){ if (!coachShown) return; coachShown = false; $('#coach').hidden = true; mem.set('bd2_coach', true); }
 async function boot(){
   preloadSounds();
+  document.title = STORE.name; $('#storeName').textContent = STORE.name; $('#loader b').textContent = STORE.name; $('#gl').setAttribute('aria-label', 'جولة داخل ' + STORE.name);
+  if (STORE.demo) $('.bt small').insertAdjacentHTML('afterbegin', '<span class="demo-tag">نسخة تجريبية</span> ');
   renderChips(); initDeal(); refreshCart();
   await fontsReady();
   try { gl = await init3D(); } catch(e){ console.error(e); gl = false; }
@@ -2187,58 +2242,6 @@ function pallet(x, z, w, d){
   for (let i = 0; i < 5; i++) addBox('wood', w, .025, .1, x, .125, z - d / 2 + .05 + i * (d - .1) / 4);
   for (let i = 0; i < 3; i++) addBox('wood', .1, .1, d, x - w / 2 + .05 + i * (w - .1) / 2, .05, z);
   aoStrip(x, z + d / 2, w, .35, 0); aoStrip(x, z - d / 2, w, .35, Math.PI);
-}
-function buildDisplays(){
-  // water pallet at the front left
-  { const x = -4.4, z = -2.2, list = [];
-    pallet(x, z, 1.1, 1.0);
-    for (let l = 0; l < 2; l++) for (let i = 0; i < 11; i++) for (let j = 0; j < 10; j++) list.push(M4(x - .45 + i * .09, .14 + l * .33, z - .41 + j * .09, (i * 7 + j) % 6));
-    addBox('fill', 1.02, .005, .92, x, .465, z);
-    instancedItems('water', list); stakeSign('water', x + .62, z, Math.PI / 2, 1.05);
-    COLL.push([x - .65, x + .7, z - .55, z + .55]); }
-  // rice pallet at the front right
-  { const x = 4.6, z = -3.2, list = [];
-    pallet(x, z, 1.1, 1.0);
-    for (let l = 0; l < 3; l++) for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) list.push(M4(x - .36 + i * .24, .14 + l * .105, z - .5 + j * .33 + (l % 2) * .02, 0, -Math.PI / 2));
-    instancedItems('rice', list); stakeSign('rice', x - .62, z, -Math.PI / 2, 1.05);
-    COLL.push([x - .7, x + .65, z - .55, z + .55]); }
-  // round three-tier sweets stand in the middle of the front area
-  { const x = 1.1, z = -3.5;
-    [[.75, .45], [.55, .8], [.35, 1.15]].forEach(([r, y]) => { const g = new THREE.CylinderGeometry(r, r, .04, 40); g.translate(x, y, z); addG('wood', g); });
-    { const g = new THREE.CylinderGeometry(.05, .05, 1.2, 12); g.translate(x, .6, z); addG('steel', g); const b = new THREE.CylinderGeometry(.78, .82, .43, 40); b.translate(x, .215, z); addG('brand', b); }
-    const choc = [], bisc = [];
-    [[.62, .47, 22], [.44, .82, 16], [.24, 1.17, 9]].forEach(([r, y, n], k) => { for (let i = 0; i < n; i++){ const a = i / n * Math.PI * 2; (k === 1 ? bisc : choc).push(M4(x + Math.sin(a) * r, y, z + Math.cos(a) * r, a)); } });
-    instancedItems('choc', choc); instancedItems('biscuit', bisc);
-    stakeSign('choc', x, z + .85, 0, 1.0);
-    COLL.push([x - .85, x + .85, z - .85, z + .85]);
-    aoStrip(x, z + .8, 1.6, .3, 0); }
-  // wire bins of chips at the back ends of the aisles
-  [-2.4, 2.4].forEach((x, k) => {
-    const z = -17.05, list = [];
-    const bin = new THREE.CylinderGeometry(.42, .38, .7, 28, 1, true); bin.translate(x, .45, z); addG('steel', bin);
-    const bot = new THREE.CylinderGeometry(.38, .38, .02, 28); bot.translate(x, .45, z); addG('dark', bot);
-    for (let i = 0; i < 6; i++){ const g = new THREE.CylinderGeometry(.012, .012, .45, 6); const a = i / 6 * Math.PI * 2; g.translate(x + Math.sin(a) * .36, .22, z + Math.cos(a) * .36); addG('steel', g); }
-    for (let i = 0; i < 26; i++){ const a = rnd() * Math.PI * 2, r = rnd() * .28; list.push(M4(x + Math.sin(a) * r, .5 + rnd() * .35, z + Math.cos(a) * r, rnd() * 6, -1.2 + rnd() * .8, (rnd() - .5) * .8)); }
-    instancedItems(k ? 'popcorn' : 'chips', list);
-    stakeSign(k ? 'popcorn' : 'chips', x, z - .5, Math.PI, 1.15);
-    COLL.push([x - .5, x + .5, z - .55, z + .5]);
-  });
-  // potted plants by the door and in the back corners
-  const leafMat = new THREE.MeshStandardMaterial({ color: '#3E7A3A', roughness: .75 });
-  [[-6.9, 5.1], [6.95, 5.2], [-6.95, -19.5], [6.95, -19.5]].forEach(([x, z]) => {
-    const pot = new THREE.CylinderGeometry(.27, .2, .5, 24); pot.translate(x, .25, z); addG('dark', pot);
-    const soil = new THREE.CylinderGeometry(.25, .25, .02, 20); soil.translate(x, .49, z); addG('fill', soil);
-    const plant = new THREE.Group();
-    for (let i = 0; i < 26; i++){
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6).scale(.07, .28, .025), leafMat);
-      const a = rnd() * Math.PI * 2, t = .2 + rnd() * .9;
-      leaf.position.set(Math.sin(a) * .12 * t, .55 + t * .55, Math.cos(a) * .12 * t);
-      leaf.rotation.set(Math.cos(a) * (.4 + t * .5), a, Math.sin(a) * (.4 + t * .5));
-      plant.add(leaf);
-    }
-    plant.position.set(x, 0, z); scene.add(plant);
-    COLL.push([x - .32, x + .32, z - .32, z + .32]);
-  });
 }
 
 /* ---------- printed promo posters on the walls, made from the product photos ---------- */
@@ -2303,18 +2306,7 @@ function placePoster(spec, w, h, pos, ry){
   const frame = new THREE.Mesh(new THREE.BoxGeometry(w + .05, h + .05, .02), MAT.dark); frame.position.set(pos[0], pos[1], pos[2]); frame.rotation.y = ry; frame.translateZ(-.012); scene.add(frame);
   POSTERS.push({ spec, mat });
 }
-function buildPosters(){
-  const R = -Math.PI / 2, Lw = Math.PI / 2;
-  placePoster({ kind: 'deal', w: 600, h: 840, bg: '#C8102E', title: 'عرض اليوم', items: ['oil'] }, 1.05, 1.47, [X1 - .03, 1.85, -2.7], R);
-  placePoster({ kind: 'grid', w: 600, h: 840, bg: '#1E7A3C', title: '٢ + ١ مجاناً', sub: 'على السناكات والمشروبات', items: ['chips', 'cola', 'popcorn', 'juice'] }, 1.05, 1.47, [X1 - .03, 1.85, -4.6], R);
-  placePoster({ kind: 'grid', w: 600, h: 840, bg: '#2E7D32', title: 'طازج كل يوم', sub: 'من الحقل لبيتك', items: ['tomato', 'orange', 'apple', 'banana'] }, .78, 1.1, [X0 + .03, 1.95, 2.9], Lw);
-  placePoster({ kind: 'card', w: 600, h: 840, bg: '#123B2A', title: 'بطاقة البيدر', sub: 'اجمع نقطة على كل شيكل', note: 'واستبدل نقاطك بمشتريات' }, .78, 1.1, [X0 + .03, 1.95, -3.3], Lw);
-  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#1565C0', title: 'عروض الألبان', sub: 'طازجة كل صباح', items: ['milk', 'labneh', 'cheese'], priceOf: 'labneh' }, 2.1, .56, [-4.55, 2.68, Z0 + .03], 0);
-  placePoster({ kind: 'banner', w: 1200, h: 320, bg: '#C8102E', title: 'توصيل مجاني', sub: `للطلبات فوق ${STORE.freeDelivery} ₪`, items: ['rice', 'water', 'laundry'] }, 2.1, .56, [4.55, 2.68, Z0 + .03], 0);
-  // nested carts parked by the door
-  for (let i = 0; i < 4; i++){ const c = makeCart(true); c.position.set(-5.0, 0, 3.5 + i * .22); c.rotation.y = Math.PI; scene.add(c); }
-  COLL.push([-5.35, -4.65, 2.9, 4.6]);
-}
+
 async function paintPosters(){
   for (const p of POSTERS){ const c = await drawPoster(p.spec); p.mat.map = tex(c); p.mat.needsUpdate = true; }
 }
